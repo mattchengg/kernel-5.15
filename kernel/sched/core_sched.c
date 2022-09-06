@@ -85,7 +85,7 @@ unsigned long sched_core_update_cookie(struct task_struct *p, unsigned long cook
 	 * the cookie change, so enter the scheduler on its CPU to schedule it
 	 * away.
 	 */
-	if (task_running(rq, p))
+	if (task_on_cpu(rq, p))
 		resched_curr(rq);
 
 	task_rq_unlock(rq, p, &rf);
