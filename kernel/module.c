@@ -2186,8 +2186,6 @@ void __weak module_arch_freeing_init(struct module *mod)
 {
 }
 
-static void cfi_cleanup(struct module *mod);
-
 /* Free a module, remove from lists, etc. */
 static void free_module(struct module *mod)
 {
@@ -2228,9 +2226,6 @@ static void free_module(struct module *mod)
 	/* Wait for RCU-sched synchronizing before releasing mod->list and buglist. */
 	synchronize_rcu();
 	mutex_unlock(&module_mutex);
-
-	/* Clean up CFI for the module. */
-	cfi_cleanup(mod);
 
 	/* This may be empty, but that's OK */
 	module_arch_freeing_init(mod);
@@ -4310,7 +4305,6 @@ static int load_module(struct load_info *info, const char __user *uargs,
 	synchronize_rcu();
 	kfree(mod->args);
  free_arch_cleanup:
-	cfi_cleanup(mod);
 	module_arch_cleanup(mod);
  free_modinfo:
 	free_modinfo(mod);
@@ -4685,15 +4679,6 @@ static void cfi_init(struct module *mod)
 	if (exit)
 		mod->exit = *exit;
 #endif
-
-	cfi_module_add(mod, module_addr_min);
-#endif
-}
-
-static void cfi_cleanup(struct module *mod)
-{
-#ifdef CONFIG_CFI_CLANG
-	cfi_module_remove(mod, module_addr_min);
 #endif
 }
 
