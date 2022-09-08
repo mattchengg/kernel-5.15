@@ -27,9 +27,7 @@
 #include <linux/tracepoint-defs.h>
 #include <linux/srcu.h>
 #include <linux/static_call_types.h>
-#include <linux/cfi.h>
 #include <linux/android_kabi.h>
-
 #include <linux/percpu.h>
 #include <asm/module.h>
 
@@ -389,8 +387,9 @@ struct module {
 	const s32 *crcs;
 	unsigned int num_syms;
 
-#ifdef CONFIG_CFI_CLANG
-	cfi_check_fn cfi_check;
+#ifdef CONFIG_ARCH_USES_CFI_TRAPS
+	s32 *kcfi_traps;
+	s32 *kcfi_traps_end;
 #endif
 
 	/* Kernel parameters. */
