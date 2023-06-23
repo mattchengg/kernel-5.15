@@ -41,6 +41,8 @@
 
 #define ENABLE_FAULT_REPORTING 0
 
+#define ENABLE_FAULT_REPORTING 0
+
 static const unsigned int sysmmu_reg_set[MAX_SET_IDX][MAX_REG_IDX] = {
 	/* Default without VM */
 	{
