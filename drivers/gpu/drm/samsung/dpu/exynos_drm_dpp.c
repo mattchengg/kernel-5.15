@@ -486,8 +486,10 @@ static void __dpp_enable(struct dpp_device *dpp)
 	dpp_reg_init(dpp->id, dpp->attr);
 
 	dpp->state = DPP_STATE_ON;
-	enable_irq(dpp->dma_irq);
-	enable_irq(dpp->dpp_irq);
+	if (dpp->dma_irq)
+		enable_irq(dpp->dma_irq);
+	if (dpp->dpp_irq)
+		enable_irq(dpp->dpp_irq);
 
 	dpp_debug(dpp, "enabled\n");
 }
@@ -1020,6 +1022,7 @@ fail:
 	return ret;
 }
 
+#if 0
 static irqreturn_t dpp_irq_handler(int irq, void *priv)
 {
 	struct dpp_device *dpp = priv;
@@ -1089,6 +1092,7 @@ irq_end:
 	spin_unlock(&dpp->dma_slock);
 	return IRQ_HANDLED;
 }
+#endif
 
 static int dpp_remap_by_name(struct dpp_device *dpp, void __iomem **base,
 		const char *reg_name, enum dpp_regs_type type)
@@ -1197,6 +1201,7 @@ err:
 	return -EINVAL;
 }
 
+#if 0
 static int dpp_register_irqs(struct dpp_device *dpp)
 {
 	struct device *dev = dpp->dev;
@@ -1230,6 +1235,7 @@ static int dpp_register_irqs(struct dpp_device *dpp)
 
 	return ret;
 }
+#endif
 
 static int dpp_init_resources(struct dpp_device *dpp)
 {
@@ -1239,9 +1245,11 @@ static int dpp_init_resources(struct dpp_device *dpp)
 	if (ret)
 		goto err;
 
+#if 0
 	ret = dpp_register_irqs(dpp);
 	if (ret)
 		goto err;
+#endif
 
 	if (dpp->id == 0) {
 		pm_runtime_get_sync(dpp->dev);
