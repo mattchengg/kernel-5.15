@@ -28,7 +28,7 @@ obj-$(CONFIG_SCSI_UFS_MEDIATEK) += ufs-mediatek.o
 obj-$(CONFIG_SCSI_UFS_TI_J721E) += ti-j721e-ufs.o
 
 obj-$(CONFIG_SCSI_UFS_EXYNOS) += ufs-exynos-core.o
-ufs-exynos-core-$(CONFIG_SCSI_UFS_EXYNOS) += ufs-exynos.o ufs-exynos-dbg.o ufs-exynos-perf.o ufs-exynos-perf-v1.o ufs-exynos-gear.o\
+ufs-exynos-core-$(CONFIG_SCSI_UFS_EXYNOS) += ufs-exynos.o ufs-exynos-perf.o ufs-exynos-perf-v1.o ufs-exynos-gear.o\
 					     $(TARGET_SOC)/ufs-cal-if.o
 ufs-exynos-core-$(CONFIG_SCSI_UFS_EXYNOS_SRPMB) += ufs-exynos-srpmb.o
 ufs-exynos-core-$(CONFIG_SCSI_UFS_EXYNOS_FMP) += ufs-exynos-fmp.o
