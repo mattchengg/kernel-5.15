@@ -2745,6 +2745,49 @@ static void ufshcd_init_lrb(struct ufs_hba *hba, struct ufshcd_lrb *lrb, int i)
 	lrb->ucd_prdt_dma_addr = cmd_desc_element_addr + prdt_offset;
 }
 
+static void ufshcd_pm_qos_get_worker(struct work_struct *work)
+{
+	struct ufs_hba *hba = container_of(work, typeof(*hba), pm_qos.get_work);
+
+	if (!atomic_read(&hba->pm_qos.count))
+		return;
+
+	mutex_lock(&hba->pm_qos.lock);
+	if (atomic_read(&hba->pm_qos.count) && !hba->pm_qos.active) {
+		cpu_latency_qos_update_request(&hba->pm_qos.req, 100);
+		hba->pm_qos.active = true;
+	}
+	mutex_unlock(&hba->pm_qos.lock);
+}
+
+static void ufshcd_pm_qos_put_worker(struct work_struct *work)
+{
+	struct ufs_hba *hba = container_of(work, typeof(*hba), pm_qos.put_work);
+
+	if (atomic_read(&hba->pm_qos.count))
+		return;
+
+	mutex_lock(&hba->pm_qos.lock);
+	if (!atomic_read(&hba->pm_qos.count) && hba->pm_qos.active) {
+		cpu_latency_qos_update_request(&hba->pm_qos.req,
+					       PM_QOS_DEFAULT_VALUE);
+		hba->pm_qos.active = false;
+	}
+	mutex_unlock(&hba->pm_qos.lock);
+}
+
+static void ufshcd_pm_qos_get(struct ufs_hba *hba)
+{
+	if (atomic_inc_return(&hba->pm_qos.count) == 1)
+		queue_work(system_unbound_wq, &hba->pm_qos.get_work);
+}
+
+static void ufshcd_pm_qos_put(struct ufs_hba *hba)
+{
+	if (atomic_dec_return(&hba->pm_qos.count) == 0)
+		queue_work(system_unbound_wq, &hba->pm_qos.put_work);
+}
+
 /**
  * ufshcd_queuecommand - main entry point for SCSI requests
  * @host: SCSI host pointer
@@ -2757,7 +2800,11 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	struct ufs_hba *hba = shost_priv(host);
 	int tag = scsi_cmd_to_rq(cmd)->tag;
 	struct ufshcd_lrb *lrbp;
+	bool cmd_sent = false;
 	int err = 0;
+
+	/* Wake the CPU managing the IRQ as soon as possible */
+	ufshcd_pm_qos_get(hba);
 
 	trace_android_vh_ufs_mcq_map_tag(hba,
 				(scsi_cmd_to_rq(cmd)->mq_hctx->queue_num), &tag);
@@ -2849,6 +2896,7 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	}
 
 	ufshcd_send_command(hba, tag);
+	cmd_sent = true;
 
 out:
 	rcu_read_unlock();
@@ -2863,6 +2911,8 @@ out:
 		spin_unlock_irqrestore(hba->host->host_lock, flags);
 	}
 
+	if (!cmd_sent)
+		ufshcd_pm_qos_put(hba);
 	return err;
 }
 
@@ -5381,6 +5431,8 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 	int result;
 	int index;
 	bool update_scaling = false;
+
+	ufshcd_pm_qos_put(hba);
 
 	for_each_set_bit(index, &completed_reqs, hba->nutrs) {
 		lrbp = &hba->lrb[index];
@@ -9817,6 +9869,13 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	 */
 	ufshcd_readl(hba, REG_INTERRUPT_ENABLE);
 
+	mutex_init(&hba->pm_qos.lock);
+	INIT_WORK(&hba->pm_qos.get_work, ufshcd_pm_qos_get_worker);
+	INIT_WORK(&hba->pm_qos.put_work, ufshcd_pm_qos_put_worker);
+	hba->pm_qos.req.type = PM_QOS_REQ_AFFINE_IRQ;
+	hba->pm_qos.req.irq = irq;
+	cpu_latency_qos_add_request(&hba->pm_qos.req, PM_QOS_DEFAULT_VALUE);
+
 	/* IRQ registration */
 	err = devm_request_irq(dev, irq, ufshcd_intr, IRQF_SHARED, UFSHCD, hba);
 	if (err) {
@@ -9920,6 +9979,7 @@ free_cmd_queue:
 out_remove_scsi_host:
 	scsi_remove_host(hba->host);
 out_disable:
+	cpu_latency_qos_remove_request(&hba->pm_qos.req);
 	hba->is_irq_enabled = false;
 	ufshcd_hba_exit(hba);
 out_error:
