@@ -331,7 +331,7 @@ p_err:
 	return ret;
 }
 
-static int __init flash_sm5714_platform_probe(struct platform_device *pdev)
+static int flash_sm5714_platform_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct device *dev;
