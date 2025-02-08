@@ -185,13 +185,13 @@ int bts_update_bw(unsigned int index, struct bts_bw bw)
 		return -EINVAL;
 	}
 
-	mutex_lock(&btsdev->mutex_lock);
+	rt_mutex_lock(&btsdev->mutex_lock);
 	btsdev->bts_bw[index].peak = bw.peak;
 	btsdev->bts_bw[index].read = bw.read;
 	btsdev->bts_bw[index].write = bw.write;
 
 	bts_calc_bw();
-	mutex_unlock(&btsdev->mutex_lock);
+	rt_mutex_unlock(&btsdev->mutex_lock);
 
 	return 0;
 }
@@ -488,7 +488,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 	struct bts_bw_params *bw_params = &btsdev->bw_params;
 	unsigned int mif_freq, int_freq;
 
-	mutex_lock(&btsdev->mutex_lock);
+	rt_mutex_lock(&btsdev->mutex_lock);
 
 	for (i = 0; i < btsdev->num_bts; i++) {
 		struct bts_bw *bw = &btsdev->bts_bw[i];
@@ -505,7 +505,7 @@ static int exynos_bts_bw_open_show(struct seq_file *buf, void *d)
 	seq_printf(buf, "mif_freq: %u, int_freq: %u \n", mif_freq, int_freq);
 
 
-	mutex_unlock(&btsdev->mutex_lock);
+	rt_mutex_unlock(&btsdev->mutex_lock);
 
 	return 0;
 }
@@ -1676,7 +1676,7 @@ static int bts_probe(struct platform_device *pdev)
 			devm_kfree(btsdev->dev, btsdev);
 			return ret;
 		}
-		mutex_init(&btsdev->mutex_lock);
+		rt_mutex_init(&btsdev->mutex_lock);
 		INIT_LIST_HEAD(&btsdev->scen_node);
 
 		ret = bts_initialize(btsdev);
