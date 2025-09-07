@@ -209,7 +209,8 @@ tfa98xx_tfa_start(struct tfa98xx *tfa98xx, int next_profile, int vstep)
 	if (trace_level & 8)
 		start_time = ktime_get_boottime();
 
-	err = tfa_dev_start(tfa98xx->tfa, next_profile, vstep);
+	err = (enum tfa_error)
+		tfa_dev_start(tfa98xx->tfa, next_profile, vstep);
 
 	if (trace_level & 8) {
 		stop_time = ktime_get_boottime();
@@ -654,7 +655,8 @@ static ssize_t tfa98xx_dbgfs_dsp_state_set(struct file *file,
 		pr_info("[0x%x] Manual triggering of dsp stop...\n",
 			tfa98xx->i2c->addr);
 		mutex_lock(&tfa98xx->dsp_lock);
-		ret = tfa_dev_stop(tfa98xx->tfa);
+		ret = (enum tfa_error)
+			tfa_dev_stop(tfa98xx->tfa);
 		mutex_unlock(&tfa98xx->dsp_lock);
 		pr_debug("[0x%x] tfa_dev_stop complete: %d\n",
 			tfa98xx->i2c->addr, ret);
@@ -1393,6 +1395,7 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	struct tfa98xx *tfa98xx;
 	struct tfa_device *tfa;
 	enum tfa_error ret, cal_err = tfa_error_ok;
+	enum tfa98xx_error err;
 	int idx, ndev = tfa98xx_device_count;
 	int cal_profile = 0;
 	u64 otc_val = 1; /* calibration once by default */
@@ -1410,8 +1413,8 @@ static int tfa98xx_run_calibration(struct tfa98xx *tfa98xx0)
 	}
 
 	/* EXT_TEMP */
-	ret = tfa98xx_read_reference_temp(&temp_val);
-	if (ret) {
+	err = tfa98xx_read_reference_temp(&temp_val);
+	if (err) {
 		pr_err("%s: error in reading reference temp\n",
 			__func__);
 		temp_val = DEFAULT_REF_TEMP; /* default */

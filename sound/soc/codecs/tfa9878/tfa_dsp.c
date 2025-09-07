@@ -1246,7 +1246,8 @@ int tfa_calibrate(struct tfa_device *tfa)
 	tfa->is_cold = 1;
 
 	/* clear mtpex */
-	error = tfa_dev_mtp_set(tfa, TFA_MTP_EX, 0);
+	error = (enum tfa98xx_error)
+		tfa_dev_mtp_set(tfa, TFA_MTP_EX, 0);
 	if (error) {
 		pr_info("resetting MTPEX failed (%d)\n", error);
 		tfa->reset_mtpex = 1; /* suspend until TFA98xx is active */
@@ -4223,7 +4224,7 @@ int tfa_is_active_device(struct tfa_device *tfa)
  * for calibrating or acoustic shock
  * handling use tfa98xxCalibration function.
  */
-enum tfa_error tfa_dev_start(struct tfa_device *tfa,
+enum tfa98xx_error tfa_dev_start(struct tfa_device *tfa,
 	int next_profile, int vstep)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
@@ -4453,8 +4454,7 @@ enum tfa_error tfa_dev_start(struct tfa_device *tfa,
 
 	/* Profile switching in call */
 	mutex_lock(&dev_lock);
-	err = (enum tfa98xx_error)
-		tfa_dev_switch_profile(tfa, next_profile, vstep);
+	err = tfa_dev_switch_profile(tfa, next_profile, vstep);
 	mutex_unlock(&dev_lock);
 	if (err != TFA98XX_ERROR_OK)
 		goto tfa_dev_start_exit;
@@ -4474,7 +4474,7 @@ tfa_dev_start_exit:
 	return err;
 }
 
-enum tfa_error tfa_dev_switch_profile(struct tfa_device *tfa,
+enum tfa98xx_error tfa_dev_switch_profile(struct tfa_device *tfa,
 	int next_profile, int vstep)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
@@ -4536,7 +4536,7 @@ enum tfa_error tfa_dev_switch_profile(struct tfa_device *tfa,
 	return err;
 }
 
-enum tfa_error tfa_dev_stop(struct tfa_device *tfa)
+enum tfa98xx_error tfa_dev_stop(struct tfa_device *tfa)
 {
 	enum tfa98xx_error err = TFA98XX_ERROR_OK;
 
@@ -5694,14 +5694,16 @@ enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa,
 
 	switch (item) {
 	case TFA_MTP_OTC:
-		err = tfa98xx_set_mtp(tfa, (uint16_t)
-			(value << TFA98XX_KEY2_PROTECTED_MTP0_MTPOTC_POS),
-			TFA98XX_KEY2_PROTECTED_MTP0_MTPOTC_MSK);
+		err = (enum tfa_error)
+			tfa98xx_set_mtp(tfa, (uint16_t)
+				(value << TFA98XX_KEY2_PROTECTED_MTP0_MTPOTC_POS),
+				TFA98XX_KEY2_PROTECTED_MTP0_MTPOTC_MSK);
 		break;
 	case TFA_MTP_EX:
-		err = tfa98xx_set_mtp(tfa, (uint16_t)
-			(value << TFA98XX_KEY2_PROTECTED_MTP0_MTPEX_POS),
-			TFA98XX_KEY2_PROTECTED_MTP0_MTPEX_MSK);
+		err = (enum tfa_error)
+			tfa98xx_set_mtp(tfa, (uint16_t)
+				(value << TFA98XX_KEY2_PROTECTED_MTP0_MTPEX_POS),
+				TFA98XX_KEY2_PROTECTED_MTP0_MTPEX_MSK);
 		if (err == tfa_error_ok) {
 			tfa->mtpex = value;
 			if (value == 0)
