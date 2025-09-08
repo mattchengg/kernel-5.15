@@ -3,8 +3,6 @@
 # Video configuration
 #
 
-menu "Graphics support"
-
 if HAS_IOMEM
 
 config HAVE_FB_ATMEL
@@ -45,8 +43,5 @@ endif
 
 if FB || SGI_NEWPORT_CONSOLE
 	source "drivers/video/logo/Kconfig"
-
 endif
 
-
-endmenu
