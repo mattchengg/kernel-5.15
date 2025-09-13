@@ -33,6 +33,7 @@
 #include <linux/timer.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/samsung/sec_board_id.h>
 
 #ifdef CONFIG_HW_RANDOM_S2Q000_MISC_DEVICE
 #define	QRNG_IOCTL_DIAG			_IO('Q',4)
@@ -1268,51 +1269,56 @@ static int __init qrng_mod_init(void)
 {
 	int	ret = 0;
 
-	PLINE;
+	if (sec_board_support_qrng()) {
+		PLINE;
 
-	ret = i2c_add_driver(&qrng_i2c_driver);
+		ret = i2c_add_driver(&qrng_i2c_driver);
 
-	if (ret){
-		PERR("i2c_add_driver error: %d\n", ret);
-		return ret;
-	} else {
-		PINFO("i2c_add_driver ok\n");
-	}
+		if (ret){
+			PERR("i2c_add_driver error: %d\n", ret);
+			return ret;
+		} else {
+			PINFO("i2c_add_driver ok\n");
+		}
 
-	if(gQrng == NULL) {
-		PERR("gQrng is null\n");
-		i2c_del_driver(&qrng_i2c_driver);
-		return -EFAULT;
-	}
-	else if (gQrng->dev->of_node->parent) {
-		int rc, scl_freq;
-		rc = of_property_read_u32(gQrng->dev->of_node->parent,
-		"clock-frequency", &scl_freq);
-		PINFO("rc:%d, sclk:freq:%d\n", rc, scl_freq);
-	}
+		if(gQrng == NULL) {
+			PERR("gQrng is null\n");
+			i2c_del_driver(&qrng_i2c_driver);
+			return -EFAULT;
+		} 
+		else if (gQrng->dev->of_node->parent) {
+			int rc, scl_freq;
+			rc = of_property_read_u32(gQrng->dev->of_node->parent,
+				"clock-frequency", &scl_freq);
+			PINFO("rc:%d, sclk:freq:%d\n", rc, scl_freq);
+		}
 
 #ifdef CONFIG_QRNG_HQM
-	delay = msecs_to_jiffies(QRNG_SELFTEST_DELAY_MS);
-	PINFO("QRNG auto-diag wq is preparing with %u jiffies\n", (unsigned) delay);
+		delay = msecs_to_jiffies(QRNG_SELFTEST_DELAY_MS);
+		PINFO("QRNG auto-diag wq is preparing with %u jiffies\n", (unsigned) delay);
 
-	if (!diag_wq)
-		diag_wq = alloc_workqueue("qrng_selftest", WQ_MEM_RECLAIM, 0);
-	if (diag_wq)
-		queue_delayed_work(diag_wq, &qrng_diag_work, delay);
+		if (!diag_wq)
+			diag_wq = alloc_workqueue("qrng_selftest", WQ_MEM_RECLAIM, 0);
+
+		if (diag_wq)
+			queue_delayed_work(diag_wq, &qrng_diag_work, delay);
 #endif
+	}
 
 	return ret;
 }
 
 static void __exit qrng_mod_exit(void)
 {
-	PLINE;
-	i2c_del_driver(&qrng_i2c_driver);
+	if (sec_board_support_qrng()) {
+		PLINE;
+		i2c_del_driver(&qrng_i2c_driver);
 
 #ifdef CONFIG_QRNG_HQM
-	if(diag_wq)
-		destroy_workqueue(diag_wq);
+		if(diag_wq)
+			destroy_workqueue(diag_wq);
 #endif
+	}
 }
 
 #ifdef CONFIG_DEFERRED_INITCALLS

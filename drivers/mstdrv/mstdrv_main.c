@@ -40,6 +40,7 @@
 #include <linux/battery/sec_battery_common.h>
 #endif
 #include "mstdrv_main.h"
+#include <linux/samsung/sec_board_id.h>
 
 /* defines */
 #define	ON				1	// On state
@@ -873,14 +874,17 @@ static void mst_cluster_freq_ctrl_worker(struct work_struct *work)
 static int __init mst_drv_init(void)
 {
 	int ret = 0;
-#if !defined(CONFIG_MST_DUMMY_DRV)
-	mst_info("%s\n", __func__);
-	ret = platform_driver_register(&sec_mst_ldo_driver);
-	mst_info("%s: init , ret : %d\n", __func__, ret);
 
-	cluster_freq_ctrl_wq =
-		create_singlethread_workqueue("mst_cluster_freq_ctrl_wq");
-	INIT_DELAYED_WORK(&dwork, mst_cluster_freq_ctrl_worker);
+#if !defined(CONFIG_MST_DUMMY_DRV)
+	if (sec_board_support_ldo()) {
+		mst_info("%s\n", __func__);
+		ret = platform_driver_register(&sec_mst_ldo_driver);
+		mst_info("%s: init , ret : %d\n", __func__, ret);
+
+		cluster_freq_ctrl_wq =
+			create_singlethread_workqueue("mst_cluster_freq_ctrl_wq");
+		INIT_DELAYED_WORK(&dwork, mst_cluster_freq_ctrl_worker);
+	}
 #else
 	mst_info("%s: create dummy driver\n", __func__);
 #endif
@@ -893,8 +897,10 @@ static int __init mst_drv_init(void)
 static void __exit mst_drv_exit(void)
 {
 #if !defined(CONFIG_MST_DUMMY_DRV)
-	class_destroy(mst_drv_class);
-	mst_info("%s\n", __func__);
+	if (sec_board_support_ldo()) {
+		class_destroy(mst_drv_class);
+		mst_info("%s\n", __func__);
+	}
 #else
 	mst_info("%s: destroy dummy driver\n", __func__);
 #endif
