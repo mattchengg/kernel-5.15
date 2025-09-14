@@ -42,6 +42,8 @@
 #include <linux/muic/common/muic_notifier.h>
 #endif /* CONFIG_MUIC_NOTIFIER */
 
+#include <linux/samsung/sec_board_id.h>
+
 static struct sm5714_muic_data *afc_init_data;
 
 static void sm5714_afc_notifier_attach(struct sm5714_muic_data *muic_data,
@@ -280,9 +282,7 @@ int sm5714_muic_voltage_control(struct sm5714_muic_data *muic_data,
 	int afc_error_count = 0;
 	int dev1 = 0;
 	int attached_dev = 0;
-#if !defined(CONFIG_MUIC_QC_DISABLE)
 	int qc20_temp = 0;
-#endif
 	int vbus_voltage = 0;
 	int vbus_txd_voltage = 0;
 	int voltage_min = 0, voltage_max = 0;
@@ -394,39 +394,48 @@ int sm5714_muic_voltage_control(struct sm5714_muic_data *muic_data,
 				pr_info("[%s:%s] AFC_ERROR, afcstatus(0x%x), DEVICE_TYPE1(0x%x), irqafc(0x%x), retry(%d)\n",
 						MUIC_DEV_NAME, __func__,
 						afcstatus, dev1, irqafc, retry);
-#if defined(CONFIG_MUIC_QC_DISABLE)
-				if (afc_error_count >= 2) {
-					break;
-#else
-				if ( (afc_error_count >= 2) && (dev1 & DEV_TYPE1_QC20_TA) ){
-					/* ENAFC set '0' */
-					sm5714_set_afc_ctrl_reg(muic_data,
-							AFCCTRL_ENAFC, 0);
-					pr_info("[%s:%s] QC20_TA, retry(%d)\n",
-							MUIC_DEV_NAME, __func__, retry);
 
-					attached_dev = SM5714_MUIC_QC20;
+				if (sec_board_support_qc()) {
+					if ( (afc_error_count >= 2) && (dev1 & DEV_TYPE1_QC20_TA) ){
+						/* ENAFC set '0' */
+						sm5714_set_afc_ctrl_reg(muic_data,
+								AFCCTRL_ENAFC, 0);
+						pr_info("[%s:%s] QC20_TA, retry(%d)\n",
+								MUIC_DEV_NAME, __func__, retry);
 
-					qc20_temp = ((afctxd&0xF0)>>4);
-					if (qc20_temp == 0x00) /* QC20 5V */
-						qc20_temp = SM5714_ENQC20_5V;
-					else if (qc20_temp == 0x04) /* QC20 9V */
-						qc20_temp = SM5714_ENQC20_9V;
+						attached_dev = SM5714_MUIC_QC20;
 
-					ret = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_AFCCNTL);
-					reg_val = (ret & 0x3F) | (qc20_temp<<6);
-					sm5714_i2c_write_byte(i2c, SM5714_MUIC_REG_AFCCNTL, reg_val);
-					pr_info("[%s:%s] read REG_AFCCNTL=0x%x ,  write REG_AFCCNTL=0x%x , qc20_vbus=%d\n",
-							MUIC_DEV_NAME, __func__, ret, reg_val, qc20_temp);
-					break;
-#endif
+						qc20_temp = ((afctxd&0xF0)>>4);
+						if (qc20_temp == 0x00) /* QC20 5V */
+							qc20_temp = SM5714_ENQC20_5V;
+						else if (qc20_temp == 0x04) /* QC20 9V */
+							qc20_temp = SM5714_ENQC20_9V;
+
+						ret = sm5714_i2c_read_byte(i2c, SM5714_MUIC_REG_AFCCNTL);
+						reg_val = (ret & 0x3F) | (qc20_temp<<6);
+						sm5714_i2c_write_byte(i2c, SM5714_MUIC_REG_AFCCNTL, reg_val);
+						pr_info("[%s:%s] read REG_AFCCNTL=0x%x ,  write REG_AFCCNTL=0x%x , qc20_vbus=%d\n",
+								MUIC_DEV_NAME, __func__, ret, reg_val, qc20_temp);
+						break;
+					} else {
+						afc_error_count++;
+						/* ENAFC set '1' */
+						sm5714_set_afc_ctrl_reg(muic_data,
+								AFCCTRL_ENAFC, 1);
+						pr_info("[%s:%s] AFC_ERROR, afc_error_count(%d)\n",
+								MUIC_DEV_NAME, __func__, afc_error_count);
+					}
 				} else {
-					afc_error_count++;
-					/* ENAFC set '1' */
-					sm5714_set_afc_ctrl_reg(muic_data,
-						AFCCTRL_ENAFC, 1);
-					pr_info("[%s:%s] AFC_ERROR, afc_error_count(%d)\n",
-						MUIC_DEV_NAME, __func__, afc_error_count);
+					if (afc_error_count >= 2) {
+						break;
+					} else {
+						afc_error_count++;
+						/* ENAFC set '1' */
+						sm5714_set_afc_ctrl_reg(muic_data,
+								AFCCTRL_ENAFC, 1);
+						pr_info("[%s:%s] AFC_ERROR, afc_error_count(%d)\n",
+								MUIC_DEV_NAME, __func__, afc_error_count);
+					}
 				}
 			} else {
 				pr_info("[%s:%s] AFC_ACCEPTED Fail(0x%x), retry(%d)\n",
@@ -584,11 +593,10 @@ int sm5714_afc_ta_attach(struct sm5714_muic_data *muic_data)
 
 	if (muic_data->vbus_changed_9to5 == 1) {
 		muic_data->vbus_changed_9to5 = 0;
-#if defined(CONFIG_MUIC_QC_DISABLE)
-		sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_AFC_TA, 5);
-#else
-		sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_QC20, 5);
-#endif
+		if (sec_board_support_qc())
+			sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_QC20, 5);
+		else
+			sm5714_afc_notifier_attach(muic_data, SM5714_MUIC_AFC_TA, 5);
 		return 0;
 	}
 
@@ -834,12 +842,10 @@ int sm5714_afc_error(struct sm5714_muic_data *muic_data)
 	int value = 0;
 	int dev1 = 0;
 	int val1 = 0, val2 = 0, val3 = 0;
-#if !defined(CONFIG_MUIC_QC_DISABLE)
 	int ret = 0, reg_val = 0;
 	int txd_voltage = 0, vbus_voltage = 0;
 	int voltage_min = 0, voltage_max = 0;
 	int i = 0, vbus_check = 0;
-#endif
 
 	pr_info("[%s:%s] AFC_ERROR (%d)\n", MUIC_DEV_NAME, __func__,
 			muic_data->afc_retry_count);
@@ -873,84 +879,90 @@ int sm5714_afc_error(struct sm5714_muic_data *muic_data)
 		return 0;
 	}
 
-#if defined(CONFIG_MUIC_QC_DISABLE)
-	if (muic_data->afc_retry_count < 5) {
-		msleep(100); /* 100ms delay */
-		/* ENAFC set '1' */
-		sm5714_set_afc_ctrl_reg(muic_data, AFCCTRL_ENAFC, 1);
-		muic_data->afc_retry_count++;
-		pr_info("[%s:%s] re-start AFC (afc_retry_count=%d)\n",
-				MUIC_DEV_NAME, __func__,
-				muic_data->afc_retry_count);
-	} else {
-		pr_info("[%s:%s] ENAFC end = %d\n", MUIC_DEV_NAME, __func__,
-				muic_data->afc_retry_count);
-		muic_data->attached_dev = ATTACHED_DEV_TA_MUIC;
-		muic_notifier_attach_attached_dev(muic_data->attached_dev);
-	}
-#else
-	if (muic_data->afc_retry_count < 5) {
-		if ((dev1 & DEV_TYPE1_QC20_TA) &&
-				(muic_data->afc_retry_count >= 2)) {
+	if (sec_board_support_qc()) {
+		if (muic_data->afc_retry_count < 5) {
+			if ((dev1 & DEV_TYPE1_QC20_TA) &&
+					(muic_data->afc_retry_count >= 2)) {
 
-			txd_voltage = sm5714_i2c_read_byte(i2c,
-				SM5714_MUIC_REG_AFCTXD);
-			txd_voltage = 5 + ((txd_voltage&0xF0)>>4);
-
-			ret = sm5714_i2c_read_byte(i2c,
-				SM5714_MUIC_REG_AFCCNTL);
-			if (txd_voltage == 12) { /* QC20_12V_TA */
-				reg_val = (ret & 0x3F) | (SM5714_ENQC20_12V<<6);
-			} else if (txd_voltage == 9) { /* QC20_9V_TA */
-				reg_val = (ret & 0x3F) | (SM5714_ENQC20_9V<<6);
-			} else {
-				reg_val = (ret & 0x3F) | (SM5714_ENQC20_5V<<6);
-			}
-			sm5714_i2c_write_byte(i2c,
-				SM5714_MUIC_REG_AFCCNTL, reg_val);
-			pr_info("[%s:%s] read REG_AFCCNTL=0x%x, write REG_AFCCNTL=0x%x\n",
-				MUIC_DEV_NAME, __func__, ret, reg_val);
-
-			msleep(100);
-
-			voltage_min  = txd_voltage - 2;
-			voltage_max  = txd_voltage + 1;
-
-			vbus_check = 0;
-			for (i = 0 ; i < 5 ; i++) {
-				vbus_voltage =
-					sm5714_muic_get_vbus_value(muic_data);
-				pr_info("[%s:%s]i:%d TXD:%dV voltage_min:%dV voltage_max:%dV vbus_voltage:%dV\n",
-						MUIC_DEV_NAME, __func__,
-						i, txd_voltage,
-						voltage_min, voltage_max,
-						vbus_voltage);
-
-				if ((voltage_min <= vbus_voltage) &&
-					(vbus_voltage <= voltage_max)) {
-					vbus_check = 1;
-					i = 10; /* break */
-				} else {
-					msleep(100);
-					pr_info("[%s:%s] retry:%d\n",
-						MUIC_DEV_NAME, __func__, i);
-				}
-			}
-			if (vbus_check)
-				sm5714_afc_notifier_attach(muic_data,
-					SM5714_MUIC_QC20, txd_voltage);
-			else {
-				sm5714_afc_notifier_attach(muic_data,
-					SM5714_MUIC_QC20, 5);
+				txd_voltage = sm5714_i2c_read_byte(i2c,
+					SM5714_MUIC_REG_AFCTXD);
+				txd_voltage = 5 + ((txd_voltage&0xF0)>>4);
 
 				ret = sm5714_i2c_read_byte(i2c,
 					SM5714_MUIC_REG_AFCCNTL);
-				reg_val = (ret & 0x3F) | (SM5714_ENQC20_5V<<6);
+				if (txd_voltage == 12) { /* QC20_12V_TA */
+					reg_val = (ret & 0x3F) | (SM5714_ENQC20_12V<<6);
+				} else if (txd_voltage == 9) { /* QC20_9V_TA */
+					reg_val = (ret & 0x3F) | (SM5714_ENQC20_9V<<6);
+				} else {
+					reg_val = (ret & 0x3F) | (SM5714_ENQC20_5V<<6);
+				}
 				sm5714_i2c_write_byte(i2c,
 					SM5714_MUIC_REG_AFCCNTL, reg_val);
-			}
+				pr_info("[%s:%s] read REG_AFCCNTL=0x%x, write REG_AFCCNTL=0x%x\n",
+					MUIC_DEV_NAME, __func__, ret, reg_val);
 
+				msleep(100);
+
+				voltage_min  = txd_voltage - 2;
+				voltage_max  = txd_voltage + 1;
+
+				vbus_check = 0;
+				for (i = 0 ; i < 5 ; i++) {
+					vbus_voltage =
+						sm5714_muic_get_vbus_value(muic_data);
+					pr_info("[%s:%s]i:%d TXD:%dV voltage_min:%dV voltage_max:%dV vbus_voltage:%dV\n",
+							MUIC_DEV_NAME, __func__,
+							i, txd_voltage,
+							voltage_min, voltage_max,
+							vbus_voltage);
+
+					if ((voltage_min <= vbus_voltage) &&
+						(vbus_voltage <= voltage_max)) {
+						vbus_check = 1;
+						i = 10; /* break */
+					} else {
+						msleep(100);
+						pr_info("[%s:%s] retry:%d\n",
+							MUIC_DEV_NAME, __func__, i);
+					}
+				}
+				if (vbus_check)
+					sm5714_afc_notifier_attach(muic_data,
+						SM5714_MUIC_QC20, txd_voltage);
+				else {
+					sm5714_afc_notifier_attach(muic_data,
+						SM5714_MUIC_QC20, 5);
+
+					ret = sm5714_i2c_read_byte(i2c,
+						SM5714_MUIC_REG_AFCCNTL);
+					reg_val = (ret & 0x3F) | (SM5714_ENQC20_5V<<6);
+					sm5714_i2c_write_byte(i2c,
+						SM5714_MUIC_REG_AFCCNTL, reg_val);
+				}
+
+			} else {
+				msleep(100); /* 100ms delay */
+				/* ENAFC set '1' */
+				sm5714_set_afc_ctrl_reg(muic_data, AFCCTRL_ENAFC, 1);
+				muic_data->afc_retry_count++;
+				pr_info("[%s:%s] re-start AFC (afc_retry_count=%d)\n",
+						MUIC_DEV_NAME, __func__,
+						muic_data->afc_retry_count);
+			}
 		} else {
+			pr_info("[%s:%s] ENAFC end = %d\n", MUIC_DEV_NAME, __func__,
+					muic_data->afc_retry_count);
+			if (dev1 & DEV_TYPE1_QC20_TA)
+				muic_data->attached_dev =
+					ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC;
+			else
+				muic_data->attached_dev =
+					ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC;
+			muic_notifier_attach_attached_dev(muic_data->attached_dev);
+		}
+	} else {
+		if (muic_data->afc_retry_count < 5) {
 			msleep(100); /* 100ms delay */
 			/* ENAFC set '1' */
 			sm5714_set_afc_ctrl_reg(muic_data, AFCCTRL_ENAFC, 1);
@@ -958,19 +970,13 @@ int sm5714_afc_error(struct sm5714_muic_data *muic_data)
 			pr_info("[%s:%s] re-start AFC (afc_retry_count=%d)\n",
 					MUIC_DEV_NAME, __func__,
 					muic_data->afc_retry_count);
+		} else {
+			pr_info("[%s:%s] ENAFC end = %d\n", MUIC_DEV_NAME, __func__,
+					muic_data->afc_retry_count);
+			muic_data->attached_dev = ATTACHED_DEV_TA_MUIC;
+			muic_notifier_attach_attached_dev(muic_data->attached_dev);
 		}
-	} else {
-		pr_info("[%s:%s] ENAFC end = %d\n", MUIC_DEV_NAME, __func__,
-				muic_data->afc_retry_count);
-		if (dev1 & DEV_TYPE1_QC20_TA)
-			muic_data->attached_dev =
-				ATTACHED_DEV_QC_CHARGER_ERR_V_MUIC;
-		else
-			muic_data->attached_dev =
-				ATTACHED_DEV_AFC_CHARGER_ERR_V_MUIC;
-		muic_notifier_attach_attached_dev(muic_data->attached_dev);
 	}
-#endif
 	return 0;
 }
 

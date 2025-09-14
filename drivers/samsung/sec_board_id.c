@@ -41,6 +41,16 @@ int sec_board_support_ese(void)
 }
 EXPORT_SYMBOL(sec_board_support_ese);
 
+// SCG21/SC53D doesn't support QC charging.
+int sec_board_support_qc(void)
+{
+	if (board_id != 3)
+		return 1;
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_board_support_qc);
+
 void __init sec_board_id_setup(void)
 {
 	char *value;
@@ -52,6 +62,8 @@ void __init sec_board_id_setup(void)
 			board_id = 1;
 		} else if(strstr(value, "A546E")) {
 			board_id = 2;
+        } else if(strstr(value, "SCG21") || strstr(value, "SC53D")) {
+			board_id = 3;
         }
 
 		pr_info("%s: bootloader: %s\n", __func__,  value);
