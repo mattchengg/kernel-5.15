@@ -61,6 +61,8 @@
 #include "p73.h"
 #include "common_ese.h"
 #include "ese_reset.h"
+#include <linux/samsung/sec_board_id.h>
+
 #define DRAGON_P61 0
 
 /* Device driver's configuration macro */
@@ -1783,28 +1785,35 @@ static struct spi_driver p61_driver = {
 int p61_dev_init(void)
 {
 	int ret;
-	debug_level = P61_DEBUG_OFF;
 
-	P61_DBG_MSG("Entry : %s\n", __func__);
+	if (sec_board_support_ese()) {
+		debug_level = P61_DEBUG_OFF;
+
+		P61_DBG_MSG("Entry : %s\n", __func__);
 
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
-	ret = platform_driver_register(&p61_platform_driver);
-	NFC_LOG_INFO("%s: platform_driver_register, ret %d\n", __func__, ret);
+		ret = platform_driver_register(&p61_platform_driver);
+		NFC_LOG_INFO("%s: platform_driver_register, ret %d\n", __func__, ret);
 #endif
-	ret = spi_register_driver(&p61_driver);
-	return ret;
+		ret = spi_register_driver(&p61_driver);
+		return ret;
+	} else {
+		return 0;
+	}
 }
 EXPORT_SYMBOL(p61_dev_init);
 
 void p61_dev_exit(void)
 {
-	P61_DBG_MSG("Entry : %s\n", __func__);
+	if (sec_board_support_ese()) {
+		P61_DBG_MSG("Entry : %s\n", __func__);
 
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE
-	platform_driver_unregister(&p61_platform_driver);
+		platform_driver_unregister(&p61_platform_driver);
 #endif
 
-	spi_unregister_driver(&p61_driver);
+		spi_unregister_driver(&p61_driver);
+	}
 }
 EXPORT_SYMBOL(p61_dev_exit);
 #else

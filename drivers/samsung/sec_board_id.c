@@ -31,17 +31,31 @@ int sec_board_support_qrng(void)
 }
 EXPORT_SYMBOL(sec_board_support_qrng);
 
+// A546E doesn't support NFC eSE.
+int sec_board_support_ese(void)
+{
+	if (board_id != 2)
+		return 1;
+
+	return 0;
+}
+EXPORT_SYMBOL(sec_board_support_ese);
+
 void __init sec_board_id_setup(void)
 {
 	char *value;
 
 	value = (char *)xbc_find_value("androidboot.bootloader", NULL);
 
-	if (value)
-		if(strstr(value, "A546S"))
+	if (value) {
+		if(strstr(value, "A546S")) {
 			board_id = 1;
+		} else if(strstr(value, "A546E")) {
+			board_id = 2;
+        }
 
-		pr_debug("%s: bootloader: %s\n", __func__,  value);
+		pr_info("%s: bootloader: %s\n", __func__,  value);
+    }
 }
 
 int __init sec_board_id_init(void)

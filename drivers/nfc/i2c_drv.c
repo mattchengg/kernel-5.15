@@ -49,6 +49,7 @@
 
 #include "common_ese.h"
 #include "p73.h"
+#include <linux/samsung/sec_board_id.h>
 
 #ifdef FEATURE_CORE_RESET_NTF_CHECK
 struct nfc_core_reset_type {
@@ -783,7 +784,8 @@ int nfc_i2c_dev_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	}
 #endif
 #if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
-	store_nfc_i2c_device(&client->dev);
+	if (sec_board_support_ese())
+		store_nfc_i2c_device(&client->dev);
 #endif
 	nfc_probe_done(nfc_dev);
 #endif
@@ -1052,7 +1054,8 @@ static int __init nfc_i2c_dev_init(void)
 	if (ret != 0)
 		NFC_LOG_ERR("%s: NFC I2C add driver error ret %d\n", __func__, ret);
 #if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
-	ret = p61_dev_init();
+	if (sec_board_support_ese())
+		ret = p61_dev_init();
 #endif
 	return ret;
 }
@@ -1067,7 +1070,8 @@ static void __exit nfc_i2c_dev_exit(void)
 		return;
 #endif
 #if IS_ENABLED(CONFIG_NFC_SN2XX_ESE_SUPPORT)
-	p61_dev_exit();
+	if (sec_board_support_ese())
+		p61_dev_exit();
 #endif
 	i2c_del_driver(&nfc_i2c_dev_driver);
 #ifdef CONFIG_MAKE_NODE_USING_PLATFORM_DEVICE

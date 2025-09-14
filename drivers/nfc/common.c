@@ -30,6 +30,7 @@
 #endif
 #endif
 #include "common_ese.h"
+#include <linux/samsung/sec_board_id.h>
 
 #if IS_ENABLED(CONFIG_SAMSUNG_NFC)
 static int nfc_param_lpcharge = LPM_NO_SUPPORT;
@@ -369,7 +370,8 @@ void nfc_power_control(struct nfc_dev *nfc_dev)
 		NFC_LOG_ERR("%s pn547 regulator_on fail err = %d\n", __func__, ret);
 
 #ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
-	ese_set_spi_pinctrl_for_ese_off(NULL);
+	if (sec_board_support_ese())
+		ese_set_spi_pinctrl_for_ese_off(NULL);
 #endif
 	usleep_range(15000, 20000); /* spec : VDDIO high -> 15~20 ms -> VEN high*/
 
@@ -616,7 +618,8 @@ void nfc_print_status(void)
 	NFC_LOG_INFO("en: %d, firm: %d, pvdd: %d, irq: %d, clk_req: %d\n",
 		en, firm, pvdd, irq, clk_req_irq);
 #ifdef CONFIG_NFC_SN2XX_ESE_SUPPORT
-	p61_print_status(__func__);
+	if (sec_board_support_ese())
+		p61_print_status(__func__);
 #endif
 #ifdef CONFIG_SEC_NFC_LOGGER_ADD_ACPM_LOG
 	nfc_logger_acpm_log_print();
