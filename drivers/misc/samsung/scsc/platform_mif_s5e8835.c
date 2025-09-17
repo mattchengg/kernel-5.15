@@ -1132,6 +1132,7 @@ uint32_t ka_patch[] = {
 0x00000000,
 };
 
+#if IS_ENABLED(CONFIG_EXYNOS_ITMON) || IS_ENABLED(CONFIG_EXYNOS_ITMON_V2)
 static void wlbt_karam_dump(struct platform_mif *platform)
 {
 	unsigned int ka_addr = PMU_BOOT_RAM_START;
@@ -1152,7 +1153,6 @@ static void wlbt_karam_dump(struct platform_mif *platform)
 	regmap_write(platform->boot_cfg, 0x0, 0x0);
 }
 
-#if IS_ENABLED(CONFIG_EXYNOS_ITMON) || IS_ENABLED(CONFIG_EXYNOS_ITMON_V2)
 static int wlbt_itmon_notifier(struct notifier_block *nb,
 		unsigned long action, void *nb_data)
 {
