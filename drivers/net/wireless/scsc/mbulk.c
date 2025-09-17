@@ -141,7 +141,9 @@ static inline struct mbulk *mbulk_pool_get(struct mbulk_pool *pool, enum mbulk_c
 /* put a segment to a pool */
 static inline void mbulk_pool_put(struct mbulk_pool *pool, struct mbulk *m)
 {
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	struct slsi_dev *sdev = slsi_get_sdev();
+#endif
 
 	if (m->flag == MBULK_F_FREE)
 		return;
@@ -154,9 +156,12 @@ static inline void mbulk_pool_put(struct mbulk_pool *pool, struct mbulk *m)
 	if ((char *)m < pool->base_addr || (char *)m > pool->end_addr) {
 		SLSI_DBG3_NODEV(SLSI_MBULK, "Mbulk address is out of address boundary\n");
 
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 		/* Collect sable log for analysis */
 		if (sdev)
 			schedule_work(&sdev->sablelog_logging_work);
+#endif
+
 		spin_unlock_bh(&mbulk_pool_lock);
 		return;
 	}

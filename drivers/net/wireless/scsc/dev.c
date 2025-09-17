@@ -360,11 +360,13 @@ void slsi_add_log_to_system_error_buffer(struct slsi_dev *sdev, char *input_buff
 	mutex_unlock(&sdev->sys_error_log_buf.log_buf_mutex);
 }
 
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 void slsi_collect_sablelog(struct work_struct *work)
 {
 	SLSI_INFO_NODEV("Sable log triggered because of some reasons.\n");
 	scsc_log_collector_schedule_collection(SCSC_LOG_HOST_WLAN, SCSC_LOG_USER_REASON_PROC);
 }
+#endif
 
 static void slsi_sys_error_log_init(struct slsi_dev *sdev)
 {
@@ -633,7 +635,9 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
 	INIT_WORK(&sdev->recovery_work, slsi_subsystem_reset);
 	INIT_WORK(&sdev->recovery_work_on_start, slsi_chip_recovery);
 	INIT_WORK(&sdev->system_error_user_fail_work, slsi_system_error_recovery);
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	INIT_WORK(&sdev->sablelog_logging_work, slsi_collect_sablelog);
+#endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	INIT_WORK(&sdev->chipset_logging_work, slsi_collect_chipset_logs);
 #endif

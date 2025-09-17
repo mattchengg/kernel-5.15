@@ -1590,7 +1590,9 @@ struct slsi_dev {
 	struct work_struct recovery_work_on_start;   /* Work on chip recovery*/
 	struct work_struct trigger_wlan_fail_work;   /* Work on mlme cfm or ind timeout*/
 	struct work_struct system_error_user_fail_work;   /* Work on system error */
+#if IS_ENABLED(CONFIG_SCSC_LOG_COLLECTION)
 	struct work_struct sablelog_logging_work;/* work struct for collect sable log in interrupt context */
+#endif
 #if defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 12
 	struct work_struct chipset_logging_work; /* Work for chipset logging */
 #endif
