@@ -65,7 +65,6 @@ enum scsc_logring_tags {
 	WLOG,
 	LERNA,
 	MX_CFG,
-	SLSI_PM,
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 	SLSI_INIT_DEINIT,
 	SLSI_NETDEV,
@@ -96,6 +95,7 @@ enum scsc_logring_tags {
 	SLSI_FLOWC,
 	SLSI_SMAPPER,
 	SLSI_LBM,
+	SLSI_PM,
 #endif
 	TEST_ME,
 	MAX_TAG = TEST_ME /* keep it last */

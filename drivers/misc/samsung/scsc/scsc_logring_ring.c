@@ -63,7 +63,6 @@ const char *tagstr[MAX_TAG + 1] = {
 	"wlog",
 	"lerna",
 	"mx_cfg",
-	"pm",
 #ifdef CONFIG_SCSC_DEBUG_COMPATIBILITY
 	"init_deinit",
 	"netdev",
@@ -94,6 +93,7 @@ const char *tagstr[MAX_TAG + 1] = {
 	"flowc",
 	"smapper",
 	"lbm",
+	"pm",
 #endif
 	"test_me"
 };
