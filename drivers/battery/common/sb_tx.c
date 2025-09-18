@@ -20,7 +20,7 @@
 #include "sec_charging_common.h"
 #include "sb_tx.h"
 
-#define tx_log(str, ...) pr_info("[SB-TX]:%s: "str, __func__, ##__VA_ARGS__)
+#define tx_log(str, ...) pr_debug("[SB-TX]:%s: "str, __func__, ##__VA_ARGS__)
 
 #define AOV_VOUT_STEP	500
 #define AOV_VOUT_MAX	7500

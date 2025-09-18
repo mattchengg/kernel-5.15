@@ -15,7 +15,7 @@
 #include <linux/battery/sb_sysfs.h>
 #include <linux/battery/sb_notify.h>
 
-#define ca_log(str, ...) pr_info("[CHECKLIST-APP]:%s: "str, __func__, ##__VA_ARGS__)
+#define ca_log(str, ...) pr_debug("[CHECKLIST-APP]:%s: "str, __func__, ##__VA_ARGS__)
 
 struct sb_ca {
 	const char *name;

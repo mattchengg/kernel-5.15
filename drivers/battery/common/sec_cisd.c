@@ -60,7 +60,7 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 	int voltage = battery->voltage_now;
 
 	if (battery->factory_mode || battery->is_jig_on || battery->skip_cisd) {
-		dev_info(battery->dev, "%s: No need to check in factory mode\n",
+		dev_dbg(battery->dev, "%s: No need to check in factory mode\n",
 			__func__);
 		return ret;
 	}
@@ -78,7 +78,7 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 
 		if ((pcisd->ab_vbat_check_count >= pcisd->ab_vbat_max_count) &&
 			!(pcisd->state & CISD_STATE_OVER_VOLTAGE)) {
-			dev_info(battery->dev, "%s : [CISD] Battery Over Voltage Protection !! vbat(%d)mV\n",
+			dev_dbg(battery->dev, "%s : [CISD] Battery Over Voltage Protection !! vbat(%d)mV\n",
 				__func__, voltage);
 			val.intval = true;
 			psy_do_property("battery", set, POWER_SUPPLY_EXT_PROP_VBAT_OVP,
@@ -166,7 +166,7 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 			POWER_SUPPLY_PROP_ENERGY_NOW, val);
 		if (val.intval == -1) {
-			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
+			dev_dbg(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
 
@@ -184,21 +184,21 @@ bool sec_bat_cisd_check(struct sec_battery_info *battery)
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 			POWER_SUPPLY_PROP_ENERGY_NOW, val);
 		if (val.intval == -1) {
-			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
+			dev_dbg(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
 		pcisd->data[CISD_DATA_CAP_NOM] = val.intval;
-		dev_info(battery->dev, "%s: [CISD] CAP_NOM %dmAh\n", __func__, pcisd->data[CISD_DATA_CAP_NOM]);
+		dev_dbg(battery->dev, "%s: [CISD] CAP_NOM %dmAh\n", __func__, pcisd->data[CISD_DATA_CAP_NOM]);
 
 		val.intval = SEC_BATTERY_CAPACITY_RC0;
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 			POWER_SUPPLY_PROP_ENERGY_NOW, val);
 		if (val.intval == -1) {
-			dev_info(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
+			dev_dbg(battery->dev, "%s: [CISD] FG I2C fail. skip cisd check\n", __func__);
 			return ret;
 		}
 		pcisd->data[CISD_DATA_RC0] = val.intval;
-		dev_info(battery->dev, "%s: [CISD] RC0 0x%x\n", __func__, pcisd->data[CISD_DATA_RC0]);
+		dev_dbg(battery->dev, "%s: [CISD] RC0 0x%x\n", __func__, pcisd->data[CISD_DATA_RC0]);
 	}
 
 	if (battery->temperature > pcisd->data[CISD_DATA_BATT_TEMP_MAX])
@@ -249,7 +249,7 @@ static irqreturn_t cisd_irq_thread(int irq, void *data)
 {
 	struct cisd *pcisd = data;
 
-	pr_info("%s: irq(%d)\n", __func__, irq);
+	pr_debug("%s: irq(%d)\n", __func__, irq);
 	if (irq == pcisd->irq_ovp_power &&
 		!gpio_get_value(pcisd->gpio_ovp_power))
 		pcisd->event_data[EVENT_OVP_POWER]++;
@@ -276,7 +276,7 @@ static void sec_cisd_parse_dt(struct cisd *pcisd)
 	ret = of_get_named_gpio(np, "ovp_power", 0);
 	if (ret >= 0) {
 		pcisd->gpio_ovp_power = ret;
-		pr_info("%s: set ovp_power gpio(%d)\n", __func__, pcisd->gpio_ovp_power);
+		pr_debug("%s: set ovp_power gpio(%d)\n", __func__, pcisd->gpio_ovp_power);
 		pcisd->irq_ovp_power = gpio_to_irq(pcisd->gpio_ovp_power);
 		ret = request_threaded_irq(pcisd->irq_ovp_power, NULL,
 			cisd_irq_thread, IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -286,14 +286,14 @@ static void sec_cisd_parse_dt(struct cisd *pcisd)
 				__func__, ret);
 			pcisd->irq_ovp_power = 0;
 		} else
-			pr_info("%s: set irq_ovp_power(%d)\n", __func__, pcisd->irq_ovp_power);
+			pr_debug("%s: set irq_ovp_power(%d)\n", __func__, pcisd->irq_ovp_power);
 	} else
 		pr_err("%s: failed to get ovp_power\n", __func__);
 
 	ret = of_get_named_gpio(np, "ovp_signal", 0);
 	if (ret >= 0) {
 		pcisd->gpio_ovp_signal = ret;
-		pr_info("%s: set ovp_signal gpio(%d)\n", __func__, pcisd->gpio_ovp_signal);
+		pr_debug("%s: set ovp_signal gpio(%d)\n", __func__, pcisd->gpio_ovp_signal);
 		pcisd->irq_ovp_signal = gpio_to_irq(pcisd->gpio_ovp_signal);
 		ret = request_threaded_irq(pcisd->irq_ovp_signal, NULL,
 			cisd_irq_thread, IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -303,7 +303,7 @@ static void sec_cisd_parse_dt(struct cisd *pcisd)
 				__func__, ret);
 			pcisd->irq_ovp_signal = 0;
 		} else
-			pr_info("%s: set irq_ovp_signal(%d)\n", __func__, pcisd->irq_ovp_signal);
+			pr_debug("%s: set irq_ovp_signal(%d)\n", __func__, pcisd->irq_ovp_signal);
 	} else
 		pr_err("%s: failed to get ovp_signal\n", __func__);
 }
@@ -422,7 +422,7 @@ static void add_pad_data(struct cisd *cisd, unsigned int pad_id, unsigned int pa
 	if (pad_data == NULL)
 		return;
 
-	pr_info("%s: id(0x%x), count(%d)\n", __func__, pad_id, pad_count);
+	pr_debug("%s: id(0x%x), count(%d)\n", __func__, pad_id, pad_count);
 	while (temp_data) {
 		if (temp_data->id > pad_id) {
 			temp_data->prev->next = pad_data;
@@ -435,7 +435,7 @@ static void add_pad_data(struct cisd *cisd, unsigned int pad_id, unsigned int pa
 		temp_data = temp_data->next;
 	}
 
-	pr_info("%s: failed to add pad_data(%d, %d)\n",
+	pr_debug("%s: failed to add pad_data(%d, %d)\n",
 		__func__, pad_id, pad_count);
 	kfree(pad_data);
 }
@@ -477,7 +477,7 @@ void count_cisd_pad_data(struct cisd *cisd, unsigned int pad_id)
 	struct pad_data *pad_data;
 
 	if (cisd->pad_array == NULL) {
-		pr_info("%s: can't update the connected count of pad_id(0x%x) because of null\n",
+		pr_debug("%s: can't update the connected count of pad_id(0x%x) because of null\n",
 			__func__, pad_id);
 		return;
 	}
@@ -499,24 +499,24 @@ void set_cisd_pad_data(struct sec_battery_info *battery, const char *buf)
 	struct pad_data *pad_data;
 	int i, x;
 
-	pr_info("%s: %s\n", __func__, buf);
+	pr_debug("%s: %s\n", __func__, buf);
 	if (pcisd->pad_count > 0)
 		init_cisd_pad_data(pcisd);
 
 	if (pcisd->pad_array == NULL) {
-		pr_info("%s: can't set the pad data because of null\n", __func__);
+		pr_debug("%s: can't set the pad data because of null\n", __func__);
 		return;
 	}
 
 	if (sscanf(buf, "%10u %n", &pad_total_count, &x) <= 0) {
-		pr_info("%s: failed to read pad index\n", __func__);
+		pr_debug("%s: failed to read pad index\n", __func__);
 		return;
 	}
 	buf += (size_t)x;
-	pr_info("%s: add pad data(count: %d)\n", __func__, pad_total_count);
+	pr_debug("%s: add pad data(count: %d)\n", __func__, pad_total_count);
 	for (i = 0; i < pad_total_count; i++) {
 		if (sscanf(buf, "0x%02x:%10u %n", &pad_id, &pad_count, &x) != 2) {
-			pr_info("%s: failed to read pad data(0x%x, %d, %d)!!!re-init pad data\n",
+			pr_debug("%s: failed to read pad data(0x%x, %d, %d)!!!re-init pad data\n",
 				__func__, pad_id, pad_count, x);
 			init_cisd_pad_data(pcisd);
 			break;
@@ -570,7 +570,7 @@ static void add_power_data(struct cisd *cisd, unsigned int power, unsigned int p
 	if (power_data == NULL)
 		return;
 
-	pr_info("%s: power(%d), count(%d)\n", __func__, power, power_count);
+	pr_debug("%s: power(%d), count(%d)\n", __func__, power, power_count);
 	while (temp_data) {
 		if (temp_data->power > power) {
 			temp_data->prev->next = power_data;
@@ -583,7 +583,7 @@ static void add_power_data(struct cisd *cisd, unsigned int power, unsigned int p
 		temp_data = temp_data->next;
 	}
 
-	pr_info("%s: failed to add pad_data(%d, %d)\n",
+	pr_debug("%s: failed to add pad_data(%d, %d)\n",
 		__func__, power, power_count);
 	kfree(power_data);
 }
@@ -628,9 +628,9 @@ void count_cisd_power_data(struct cisd *cisd, int power)
 	struct power_data *power_data;
 	int power_index = 0;
 
-	pr_info("%s: power value : %d\n", __func__, power);
+	pr_debug("%s: power value : %d\n", __func__, power);
 	if (cisd->power_array == NULL || power < 15000) {
-		pr_info("%s: can't update the connected count of power(%d) because of null\n",
+		pr_debug("%s: can't update the connected count of power(%d) because of null\n",
 			__func__, power);
 		return;
 	}
@@ -662,12 +662,12 @@ void set_cisd_power_data(struct sec_battery_info *battery, const char *buf)
 	struct power_data *power_data;
 	int i, x;
 
-	pr_info("%s: %s\n", __func__, buf);
+	pr_debug("%s: %s\n", __func__, buf);
 	if (pcisd->power_count > 0)
 		init_cisd_power_data(pcisd);
 
 	if (pcisd->power_array == NULL) {
-		pr_info("%s: can't set the power data because of null\n", __func__);
+		pr_debug("%s: can't set the power data because of null\n", __func__);
 		return;
 	}
 
@@ -675,10 +675,10 @@ void set_cisd_power_data(struct sec_battery_info *battery, const char *buf)
 		return;
 
 	buf += (size_t)x;
-	pr_info("%s: add power data(count: %d)\n", __func__, power_total_count);
+	pr_debug("%s: add power data(count: %d)\n", __func__, power_total_count);
 	for (i = 0; i < power_total_count; i++) {
 		if (sscanf(buf, "%10u:%10u %n", &power_id, &power_count, &x) != 2) {
-			pr_info("%s: failed to read power data(%d, %d, %d)!!!re-init power data\n",
+			pr_debug("%s: failed to read power data(%d, %d, %d)!!!re-init power data\n",
 				__func__, power_id, power_count, x);
 			init_cisd_power_data(pcisd);
 			break;
@@ -733,7 +733,7 @@ static void add_pd_data(struct cisd *cisd, unsigned short pid, unsigned int pd_c
 	if (pd_data == NULL)
 		return;
 
-	pr_info("%s: pid(0x%04x), count(%d)\n", __func__, pid, pd_count);
+	pr_debug("%s: pid(0x%04x), count(%d)\n", __func__, pid, pd_count);
 	while (temp_data) {
 		if (temp_data->pid > pid) {
 			temp_data->prev->next = pd_data;
@@ -746,7 +746,7 @@ static void add_pd_data(struct cisd *cisd, unsigned short pid, unsigned int pd_c
 		temp_data = temp_data->next;
 	}
 
-	pr_info("%s: failed to add pd_data(0x%04x, %d)\n",
+	pr_debug("%s: failed to add pd_data(0x%04x, %d)\n",
 		__func__, pid, pd_count);
 	kfree(pd_data);
 }
@@ -790,16 +790,16 @@ void count_cisd_pd_data(unsigned short vid, unsigned short pid)
 	struct cisd *cisd = &battery->cisd;
 	struct pd_data *pd_data;
 
-	pr_info("%s: vid : 0x%04x, pid : 0x%04x\n", __func__, vid, pid);
+	pr_debug("%s: vid : 0x%04x, pid : 0x%04x\n", __func__, vid, pid);
 	if (cisd->pd_array == NULL) {
-		pr_info("%s: can't update count of pid(0x%04x) because of null\n",
+		pr_debug("%s: can't update count of pid(0x%04x) because of null\n",
 			__func__, pid);
 		return;
 	}
 
 	if ((vid != SS_PD_VID) || ((vid == SS_PD_VID)
 		&& (pid < MIN_SS_PD_PID || pid > MAX_SS_PD_PID))) {
-		pr_info("%s: other pd ta(vid_0x%04x, pid_0x%04x). change pid to 0x0000\n",
+		pr_debug("%s: other pd ta(vid_0x%04x, pid_0x%04x). change pid to 0x0000\n",
 			__func__, vid, pid);
 		pid = 0x0;
 	}
@@ -821,12 +821,12 @@ void set_cisd_pd_data(struct sec_battery_info *battery, const char *buf)
 	struct pd_data *pd_data;
 	int i, x;
 
-	pr_info("%s: %s\n", __func__, buf);
+	pr_debug("%s: %s\n", __func__, buf);
 	if (pcisd->pd_count > 0)
 		init_cisd_pd_data(pcisd);
 
 	if (pcisd->pd_array == NULL) {
-		pr_info("%s: can't set the pd data because of null\n", __func__);
+		pr_debug("%s: can't set the pd data because of null\n", __func__);
 		return;
 	}
 
@@ -834,10 +834,10 @@ void set_cisd_pd_data(struct sec_battery_info *battery, const char *buf)
 		return;
 
 	buf += (size_t)x;
-	pr_info("%s: add pd data(count: %d)\n", __func__, pd_total_count);
+	pr_debug("%s: add pd data(count: %d)\n", __func__, pd_total_count);
 	for (i = 0; i < pd_total_count; i++) {
 		if (sscanf(buf, "0x%04x:%10u %n", &pid, &pd_count, &x) != 2) {
-			pr_info("%s: failed to read pd data(0x%04x, %d, %d)!!!re-init pd data\n",
+			pr_debug("%s: failed to read pd data(0x%04x, %d, %d)!!!re-init pd data\n",
 				__func__, pid, pd_count, x);
 			init_cisd_pd_data(pcisd);
 			break;

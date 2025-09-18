@@ -28,7 +28,7 @@ static struct sec_bat_misc_dev *c_dev;
 #define NODE_OF_MISC "batt_misc"
 #define BATT_IOCTL_SWAM _IOWR('B', 0, struct swam_data)
 
-#define misc_log(str, ...) pr_info("%s:%s: "str, WC_AUTH_MSG, __func__, ##__VA_ARGS__)
+#define misc_log(str, ...) pr_debug("%s:%s: "str, WC_AUTH_MSG, __func__, ##__VA_ARGS__)
 
 #if SEC_BATT_MISC_DBG
 static void print_message(u8* buf, int size)

@@ -278,7 +278,7 @@ int sec_bat_get_inbat_vol_by_adc(struct sec_battery_info *battery)
 		inbat = 0;
 
 inbat_by_adc_goto:
-	dev_info(battery->dev, "%s: inbat(%d), inbat-ADC(%d)\n", __func__, inbat, inbat_adc);
+	dev_dbg(battery->dev, "%s: inbat(%d), inbat-ADC(%d)\n", __func__, inbat, inbat_adc);
 
 	return inbat;
 }
@@ -303,7 +303,7 @@ bool sec_bat_check_vf_adc(struct sec_battery_info *battery)
 		(battery->check_adc_value >= battery->pdata->check_adc_min)) {
 		return true;
 	} else {
-		dev_info(battery->dev, "%s: VF_ADC(%d) is out of range(min:%d, max:%d)\n",
+		dev_dbg(battery->dev, "%s: VF_ADC(%d) is out of range(min:%d, max:%d)\n",
 			__func__, battery->check_adc_value, battery->pdata->check_adc_min, battery->pdata->check_adc_max);
 		return false;
 	}
@@ -361,7 +361,7 @@ int sec_bat_get_direct_chg_temp_adc(
 		(temp_adc_table[low].adc - temp_adc_table[high].adc);
 
 direct_chg_temp_goto:
-	dev_info(battery->dev, "%s: temp(%d), direct-chg-temp-ADC(%d)\n", __func__, temp, adc_data);
+	dev_dbg(battery->dev, "%s: temp(%d), direct-chg-temp-ADC(%d)\n", __func__, temp, adc_data);
 
 	return temp;
 }
@@ -382,7 +382,7 @@ void adc_init(struct platform_device *pdev, struct sec_battery_info *battery)
 	}
 
 	for (i  = 0; i < SEC_BAT_ADC_CHANNEL_NUM; i++)
-		pr_info("%s: %s - %s\n", __func__,
+		pr_debug("%s: %s - %s\n", __func__,
 				batt_adc_list[i].name, batt_adc_list[i].is_used ? "used" : "not used");
 }
 EXPORT_SYMBOL(adc_init);

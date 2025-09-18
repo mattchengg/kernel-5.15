@@ -52,9 +52,9 @@ void sec_chg_check_modprobe(void)
 
 	if (!wait_event_timeout(gdev_init.dev_wait,
 		gdev_init.dev == check_dev, msecs_to_jiffies(MODPROB_TIMEOUT)))
-		pr_info("%s: dev_init timeout(0x%x)\n", __func__, gdev_init.dev);
+		pr_debug("%s: dev_init timeout(0x%x)\n", __func__, gdev_init.dev);
 	else
-		pr_info("%s: takes time to wait(0x%x)\n", __func__, gdev_init.dev);
+		pr_debug("%s: takes time to wait(0x%x)\n", __func__, gdev_init.dev);
 }
 EXPORT_SYMBOL(sec_chg_check_modprobe);
 
@@ -62,9 +62,9 @@ void sec_chg_check_dev_modprobe(unsigned int dev)
 {
 	if (!wait_event_timeout(gdev_init.dev_wait,
 		gdev_init.dev & dev, msecs_to_jiffies(MODPROB_TIMEOUT)))
-		pr_info("%s: dev_init timeout(0x%x)\n", __func__, dev);
+		pr_debug("%s: dev_init timeout(0x%x)\n", __func__, dev);
 	else
-		pr_info("%s: takes time to wait(0x%x)\n", __func__, dev);
+		pr_debug("%s: takes time to wait(0x%x)\n", __func__, dev);
 }
 EXPORT_SYMBOL(sec_chg_check_dev_modprobe);
 #else

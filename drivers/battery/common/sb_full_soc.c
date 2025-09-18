@@ -168,7 +168,7 @@ bool check_eu_eco_full_status(struct sec_battery_info *battery)
 
 		if ((battery->is_recharging) ||
 			(battery->charging_mode == SEC_BATTERY_CHARGING_2ND)) {
-			pr_info("%s: fixed the 2nd fullcharged!!!(%d, %d)\n",
+			pr_debug("%s: fixed the 2nd fullcharged!!!(%d, %d)\n",
 				__func__, battery->is_recharging, battery->charging_mode);
 			return true;
 		}
@@ -207,7 +207,7 @@ static void eu_eco_work(struct work_struct *work)
 	struct sec_battery_info *battery = fs->battery;
 	union power_supply_propval value = {0, };
 
-	pr_info("%s: start (%d, %d, %d, %d)\n",
+	pr_debug("%s: start (%d, %d, %d, %d)\n",
 		__func__,
 		fs->eu_eco_rechg_state, fs->is_eu_eco_rechg,
 		battery->status, battery->capacity);
@@ -221,7 +221,7 @@ static void eu_eco_work(struct work_struct *work)
 		goto update_state;
 
 	if (fs->eu_eco_rechg_state) {
-		pr_info("%s : Update fg scale to %d%%\n", __func__, battery->capacity);
+		pr_debug("%s : Update fg scale to %d%%\n", __func__, battery->capacity);
 		value.intval = 99;
 		psy_do_property(battery->pdata->fuelgauge_name, set,
 			POWER_SUPPLY_PROP_CHARGE_FULL, value);
@@ -234,7 +234,7 @@ static void eu_eco_work(struct work_struct *work)
 		sec_vote(battery->chgen_vote, VOTER_CABLE, true, SEC_BAT_CHG_MODE_CHARGING);
 		sec_vote(battery->topoff_vote, VOTER_FULL_CHARGE, false, 0);
 		sec_vote(battery->chgen_vote, VOTER_FULL_CHARGE, false, 0);
-		pr_info("%s: battery status full -> charging, Cap(%d)\n",
+		pr_debug("%s: battery status full -> charging, Cap(%d)\n",
 			__func__, battery->capacity);
 		value.intval = POWER_SUPPLY_STATUS_CHARGING;
 		psy_do_property(battery->pdata->wireless_charger_name, set,
@@ -246,7 +246,7 @@ static void eu_eco_work(struct work_struct *work)
 	queue_delayed_work(battery->monitor_wqueue, &battery->monitor_work, 0);
 
 update_state:
-	pr_info("%s: update eu eco rechg(%d --> %d)\n",
+	pr_debug("%s: update eu eco rechg(%d --> %d)\n",
 		__func__, fs->is_eu_eco_rechg, fs->eu_eco_rechg_state);
 	store_battery_log("EUECO:%d->%d,%s,%d%%",
 		fs->is_eu_eco_rechg, fs->eu_eco_rechg_state,
@@ -338,10 +338,10 @@ static ssize_t sb_full_soc_store_attrs(struct device *dev,
 		bool is_changed = false;
 
 		if (sscanf(buf, "%10d%n", &x, &n) <= 0) {
-			pr_info("%s: invalid arguments\n", __func__);
+			pr_debug("%s: invalid arguments\n", __func__);
 			return -EINVAL;
 		} else if (x < 0 || x > 100) {
-			pr_info("%s: out of range(%d)\n", __func__, x);
+			pr_debug("%s: out of range(%d)\n", __func__, x);
 			break;
 		}
 
@@ -369,7 +369,7 @@ static ssize_t sb_full_soc_store_attrs(struct device *dev,
 			__pm_stay_awake(battery->monitor_ws);
 			queue_delayed_work(battery->monitor_wqueue, &battery->monitor_work, 0);
 		}
-		pr_info("%s: %s full cap(%d, %s)\n",
+		pr_debug("%s: %s full cap(%d, %s)\n",
 			__func__, (is_changed ? "set" : "same"), x, conv_full_cap_str(full_cap_event));
 	}
 		break;
@@ -378,7 +378,7 @@ static ssize_t sb_full_soc_store_attrs(struct device *dev,
 		int x = 0;
 
 		if (sscanf(buf, "%10d\n", &x) != 1) {
-			pr_info("%s: invalid arguments\n", __func__);
+			pr_debug("%s: invalid arguments\n", __func__);
 			return -EINVAL;
 		}
 
@@ -394,7 +394,7 @@ static ssize_t sb_full_soc_store_attrs(struct device *dev,
 		queue_delayed_work(battery->monitor_wqueue, &battery->fs->eu_eco_work, 0);
 		mutex_unlock(&battery->fs->lock);
 
-		pr_info("%s: set eu eco rechg(%d)\n",
+		pr_debug("%s: set eu eco rechg(%d)\n",
 			__func__, is_eu_eco_rechg(battery->fs));
 	}
 		break;
@@ -406,7 +406,7 @@ static ssize_t sb_full_soc_store_attrs(struct device *dev,
 		int x;
 
 		if (sscanf(buf, "%10d\n", &x) != 1) {
-			pr_info("%s: invalid arguments\n", __func__);
+			pr_debug("%s: invalid arguments\n", __func__);
 			return -EINVAL;
 		}
 
@@ -483,7 +483,7 @@ void sec_bat_check_full_capacity(struct sec_battery_info *battery)
 	if (!is_full_capacity(battery->fs) ||
 		battery->status == POWER_SUPPLY_STATUS_DISCHARGING) {
 		if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
-			pr_info("%s: full_capacity(%d) status(%d)\n",
+			pr_debug("%s: full_capacity(%d) status(%d)\n",
 				__func__, now_full_capacity, battery->status);
 			sec_bat_recov_full_capacity(battery);
 		}
@@ -493,7 +493,7 @@ void sec_bat_check_full_capacity(struct sec_battery_info *battery)
 	if (battery->misc_event & BATT_MISC_EVENT_FULL_CAPACITY) {
 		if (battery->capacity <= rechg_capacity ||
 			battery->status == POWER_SUPPLY_STATUS_CHARGING) {
-			pr_info("%s : start re-charging(%d, %d) status(%d)\n",
+			pr_debug("%s : start re-charging(%d, %d) status(%d)\n",
 				__func__, battery->capacity, rechg_capacity, battery->status);
 			set_full_cap_event(battery->fs, SB_FULL_CAP_EVENT_NONE);
 			sec_bat_recov_full_capacity(battery);
@@ -501,7 +501,7 @@ void sec_bat_check_full_capacity(struct sec_battery_info *battery)
 	} else if (battery->capacity >= now_full_capacity) {
 		union power_supply_propval value = {0, };
 
-		pr_info("%s : stop charging(%d, %d, %s)\n", __func__,
+		pr_debug("%s : stop charging(%d, %d, %s)\n", __func__,
 			battery->capacity, now_full_capacity,
 			conv_full_cap_str(get_full_cap_event(battery->fs)));
 		sec_bat_set_misc_event(battery, BATT_MISC_EVENT_FULL_CAPACITY,

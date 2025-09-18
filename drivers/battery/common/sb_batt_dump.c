@@ -20,7 +20,7 @@
 #include "sec_charging_common.h"
 #include "sb_batt_dump.h"
 
-#define bd_log(str, ...) pr_info("[BATT-DUMP]:%s: "str, __func__, ##__VA_ARGS__)
+#define bd_log(str, ...) pr_debug("[BATT-DUMP]:%s: "str, __func__, ##__VA_ARGS__)
 
 #define BD_MODULE_NAME	"batt-dump"
 

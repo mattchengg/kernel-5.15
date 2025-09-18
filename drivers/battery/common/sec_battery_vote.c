@@ -416,24 +416,24 @@ struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val
 	mutex_lock(&vote_lock);
 	vote = find_vote(name);
 	if (vote) {
-		pr_info("%s: %s exist \n", __func__, name);
+		pr_debug("%s: %s exist \n", __func__, name);
 		goto err;
 	}
 	if (voter_name == NULL) {
-		pr_info("%s: Please add voter name list \n", __func__);
+		pr_debug("%s: Please add voter name list \n", __func__);
 		goto err;
 	}
 
 	vote = kzalloc(sizeof(struct sec_vote), GFP_KERNEL);
 	if (!vote) {
-		pr_info("%s: mem aloocate fail \n", __func__);
+		pr_debug("%s: mem aloocate fail \n", __func__);
 		goto err;
 	}
 	vote->name = name;
 	vote->type = type;
 	voter = kzalloc(sizeof(struct sec_voter) * num, GFP_KERNEL);
 	if (!voter) {
-		pr_info("%s: mem aloocate fail \n", __func__);
+		pr_debug("%s: mem aloocate fail \n", __func__);
 		kfree(vote);
 		goto err;
 	}
@@ -484,7 +484,7 @@ struct sec_vote *sec_vote_init(const char *name, int type, int num, int init_val
 			pr_err("Couldn't create force_set dbg file for %s\n", name);
 		}
 	}
-	pr_info("%s: %s \n", __func__, name);
+	pr_debug("%s: %s \n", __func__, name);
 	list_add(&vote->list, &vote_list);
 	mutex_unlock(&vote_lock);
 	return vote;
@@ -496,7 +496,7 @@ EXPORT_SYMBOL(sec_vote_init);
 
 void sec_vote_destroy(struct sec_vote *vote)
 {
-	pr_info("%s: %s\n", __func__, vote->name);
+	pr_debug("%s: %s\n", __func__, vote->name);
 	list_del(&vote->list);
 	kfree(vote->voter);
 	debugfs_remove_recursive(vote->root);
@@ -508,7 +508,7 @@ EXPORT_SYMBOL(sec_vote_destroy);
 void change_sec_voter_pri(struct sec_vote *vote, int event, int pri)
 {
 	if (event >= vote->num) {
-		pr_info("%s id Error(%d)\n", __func__, event);
+		pr_debug("%s id Error(%d)\n", __func__, event);
 		return;
 	}
 	mutex_lock(&vote->lock);
@@ -522,7 +522,7 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 	int id, res, ret;
 
 	if (event >= vote->num) {
-		pr_info("%s id Error(%d)\n", __func__, event);
+		pr_debug("%s id Error(%d)\n", __func__, event);
 		return;
 	}
 	mutex_lock(&vote->lock);
@@ -540,7 +540,7 @@ void _sec_vote(struct sec_vote *vote, int event, int en, int value, const char *
 	if (ret < 0)
 			goto out;
 
-	pr_info("%s(%s:%d): %s (%s, %d) -> (%s, %d)\n", __func__, fname, line, vote->name,
+	pr_debug("%s(%s:%d): %s (%s, %d) -> (%s, %d)\n", __func__, fname, line, vote->name,
 		(vote->id >= 0) ? vote->voter_name[vote->id] : none_str, vote->res,
 		(id >= 0) ? vote->voter_name[id] : none_str, res);
 
@@ -564,16 +564,16 @@ void sec_vote_refresh(struct sec_vote *vote)
 {
 	mutex_lock(&vote->lock);
 	if (vote->res == -EINVAL && vote->id == -EINVAL) {
-		pr_info("%s: skip. not used before\n", __func__);
+		pr_debug("%s: skip. not used before\n", __func__);
 	} else {
 		if (vote->force_set) {
-			pr_info("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
+			pr_debug("%s: refresh (%s, %d)\n", vote->name, force_str, vote->force_val);
 			vote->res = vote->cb(vote->data, vote->force_val);
 		} else {
 			int id, res, ret;
 
 			ret = select_vote_value(vote, &id, &res);
-			pr_info("%s: refresh (%s, %d, %d)\n", vote->name,
+			pr_debug("%s: refresh (%s, %d, %d)\n", vote->name,
 				(id >= 0) ? vote->voter_name[id] : none_str, res, ret);
 			if (ret < 0)
 				goto out;

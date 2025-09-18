@@ -15,7 +15,7 @@
 
 static int __init sb_core_init(void)
 {
-	pr_info("%s:\n", __func__);
+	pr_debug("%s:\n", __func__);
 	return 0;
 }
 module_init(sb_core_init);

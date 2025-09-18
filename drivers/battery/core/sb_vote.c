@@ -166,7 +166,7 @@ struct sb_vote *sb_vote_create(const struct sb_vote_cfg *vote_cfg, void *pdata, 
 	/* call cb */
 	vote->cb(vote->pdata, check_vote_data(vote, sb_pq_top(vote->pq)));
 
-	pr_info("%s: %s\n", __func__, vote->name);
+	pr_debug("%s: %s\n", __func__, vote->name);
 	list_add(&vote->list, &vote_list);
 	mutex_unlock(&vote_lock);
 
@@ -186,7 +186,7 @@ void sb_vote_destroy(struct sb_vote *vote)
 {
 	mutex_lock(&vote_lock);
 
-	pr_info("%s: %s\n", __func__, vote->name);
+	pr_debug("%s: %s\n", __func__, vote->name);
 	list_del(&vote->list);
 	sb_pq_destroy(vote->pq);
 	kfree(vote->vlist);

@@ -66,7 +66,7 @@ static int chg_get_en_shipmode(struct sm5714_charger_data *charger)
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11, &reg);
 	enable = (reg & (0x1 << 5)) ? 1 : 0;
 
-	pr_info("sm5714-charger: %s: forced ship mode - %s\n", __func__, enable ? "Enable" : "Disable");
+	pr_debug("sm5714-charger: %s: forced ship mode - %s\n", __func__, enable ? "Enable" : "Disable");
 
 	return enable;
 }
@@ -74,7 +74,7 @@ static int chg_get_en_shipmode(struct sm5714_charger_data *charger)
 static void chg_set_en_shipmode(struct sm5714_charger_data *charger, bool enable)
 {
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11, (enable << 5), (0x1 << 5));
-	pr_info("sm5714-charger: %s: forced ship mode - %s\n", __func__, enable ? "Enable" : "Disable");
+	pr_debug("sm5714-charger: %s: forced ship mode - %s\n", __func__, enable ? "Enable" : "Disable");
 }
 
 /* AUTO ship mode condition : [SHIP_FORCED = 0] & [VSYS < SHIP_AUTO] */
@@ -83,7 +83,7 @@ static void chg_set_auto_shipmode(struct sm5714_charger_data *charger, u8 vref)
 {
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL11,
 		(vref << 1), (0x3 << 1));	/*	SHIP_AUTO_VREF	*/
-	pr_info("sm5714-charger: %s: set auto ship vref = %d mV\n", __func__, (2600 + (vref * 200)));
+	pr_debug("sm5714-charger: %s: set auto ship vref = %d mV\n", __func__, (2600 + (vref * 200)));
 }
 
 static void chg_set_auto_shipmode_time(struct sm5714_charger_data *charger, u8 deglitch_time)
@@ -95,7 +95,7 @@ static void chg_set_auto_shipmode_time(struct sm5714_charger_data *charger, u8 d
 #if defined(ENABLE_SM5714_ENBYPASS_MODE)
 static void chg_set_en_ovp_bypass_mode(struct sm5714_charger_data *charger, bool enable)
 {
-	pr_info("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
+	pr_debug("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
 
 	if (enable) {
 		/* SUSPEND MODE */
@@ -115,7 +115,7 @@ static void chg_set_en_ovp_bypass_mode(struct sm5714_charger_data *charger, bool
 static void chg_set_en_bypass(struct sm5714_charger_data *charger, bool enable)
 {
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, (enable << 1), (0x1 << 1));
-	pr_info("sm5714-charger: %s: bypass mode - %s\n", __func__, enable ? "Enable" : "Disable");
+	pr_debug("sm5714-charger: %s: bypass mode - %s\n", __func__, enable ? "Enable" : "Disable");
 }
 
 static void chg_set_en_bypass_mode(struct sm5714_charger_data *charger, bool enable)
@@ -154,7 +154,7 @@ static void chg_set_en_bypass_mode(struct sm5714_charger_data *charger, bool ena
 			sm5714_update_reg(charger->i2c, SM5714_CHG_REG_VBUSCNTL,
 				(0x00 << 0), (0x7F << 0));		/* VBUS_LIMIT	= 100mA */
 	}
-	pr_info("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
+	pr_debug("sm5714-charger: %s: %s\n", __func__, enable ? "Enable" : "Disable");
 }
 #endif
 
@@ -197,7 +197,7 @@ static void chg_set_batreg(struct sm5714_charger_data *charger, u16 float_voltag
 	u8 offset;
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip batreg Control\n", __func__);
+		pr_debug("%s: Factory Mode Skip batreg Control\n", __func__);
 		return;
 	}
 
@@ -215,7 +215,7 @@ static void chg_set_batreg(struct sm5714_charger_data *charger, u16 float_voltag
 		offset = 0x15;    /* default Offset : 4.2V */
 	}
 
-	pr_info("%s:  set as  (mV=%d) batreg Control\n", __func__, float_voltage);
+	pr_debug("%s:  set as  (mV=%d) batreg Control\n", __func__, float_voltage);
 
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL4, ((offset & 0x3F) << 0), (0x3F << 0));
 }
@@ -228,13 +228,13 @@ static void chg_set_wdt_timer(struct sm5714_charger_data *charger, u8 wdt_timer)
 
 static void chg_set_wdt_tmr_reset(struct sm5714_charger_data *charger)
 {
-	dev_info(charger->dev, "%s: wdt kick\n", __func__);
+	dev_dbg(charger->dev, "%s: wdt kick\n", __func__);
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_WDTCNTL, (0x1 << 3), (0x1 << 3));
 }
 
 static void chg_set_wdt_enable(struct sm5714_charger_data *charger, bool enable)
 {
-	dev_info(charger->dev, "%s: wdt enable(%d)\n", __func__, enable);
+	dev_dbg(charger->dev, "%s: wdt enable(%d)\n", __func__, enable);
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_WDTCNTL, (enable << 0), (0x1 << 0));
 	if (enable)
 		chg_set_wdt_tmr_reset(charger);
@@ -242,7 +242,7 @@ static void chg_set_wdt_enable(struct sm5714_charger_data *charger, bool enable)
 
 static void chg_set_wdtcntl_reset(struct sm5714_charger_data *charger)
 {
-	dev_info(charger->dev, "%s: clear wdt expired\n", __func__);
+	dev_dbg(charger->dev, "%s: clear wdt expired\n", __func__);
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_WDTCNTL, (0x1 << 6), (0x1 << 6));
 }
 
@@ -251,14 +251,14 @@ static void chg_set_input_current_limit(struct sm5714_charger_data *charger, int
 	u8 offset;
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip current limit Control\n", __func__);
+		pr_debug("%s: Factory Mode Skip current limit Control\n", __func__);
 		return;
 	}
 
 	mutex_lock(&charger->charger_mutex);
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, &offset);
 	if (offset & 0x1)
-		dev_info(charger->dev, "enabled FACTORY mode, skipped VBUS_LIMIT setting\n");
+		dev_dbg(charger->dev, "enabled FACTORY mode, skipped VBUS_LIMIT setting\n");
 	else {
 		if (mA < 100)
 			offset = 0x00;
@@ -279,7 +279,7 @@ static void chg_set_charging_current(struct sm5714_charger_data *charger, int mA
 	uA = mA * 1000;
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip charging current Control\n", __func__);
+		pr_debug("%s: Factory Mode Skip charging current Control\n", __func__);
 		return;
 	}
 
@@ -325,7 +325,7 @@ static void chg_set_lxslope(struct sm5714_charger_data *charger, u8 value)
 	/* 11 : 5.43 V/ns */
 
 	sm5714_update_reg(charger->i2c, SM5714_CHG_REG_CHGCNTL8, (value << 0), (0x3 << 0));
-	pr_info("sm5714-charger: %s: %d\n", __func__, value);
+	pr_debug("sm5714-charger: %s: %d\n", __func__, value);
 }
 
 static int chg_get_input_current_limit(struct sm5714_charger_data *charger)
@@ -359,7 +359,7 @@ static void chg_set_enq4fet(struct sm5714_charger_data *charger, bool enable)
 	int vbuslimit;
 	u8 msec;
 
-	dev_info(charger->dev, "%s: ENQ4FET(%d)\n", __func__, enable);
+	dev_dbg(charger->dev, "%s: ENQ4FET(%d)\n", __func__, enable);
 	if (enable) {
 		vbuslimit = chg_get_input_current_limit(charger);
 		if (vbuslimit > 500) {
@@ -443,11 +443,11 @@ static void chg_print_regmap(struct sm5714_charger_data *charger)
 	for (i = 0; i < PRINT_CHG_REG_NUM; ++i) {
 		sprintf(temp_buf+strlen(temp_buf), "0x%02X[0x%02X],", SM5714_CHG_REG_INTMSK1 + i, regs[i]);
 		if (i % 11 == 10) {
-			pr_info("sm5714-charger: regmap: %s\n", temp_buf);
+			pr_debug("sm5714-charger: regmap: %s\n", temp_buf);
 			memset(temp_buf, 0x0, sizeof(temp_buf));
 		}
 	}
-	pr_info("sm5714-charger: regmap: %s\n", temp_buf);
+	pr_debug("sm5714-charger: regmap: %s\n", temp_buf);
 	memset(temp_buf, 0x0, sizeof(temp_buf));
 
 	// SINKADJ & FLED
@@ -455,11 +455,11 @@ static void chg_print_regmap(struct sm5714_charger_data *charger)
 	for (i = 0; i < PRINT_CHG_REG2_NUM; ++i) {
 		sprintf(temp_buf+strlen(temp_buf), "0x%02X[0x%02X],", SM5714_CHG_REG_SINKADJ + i, reg2s[i]);
 		if (i % 9 == 8) {
-			pr_info("sm5714-charger: regmap: %s\n", temp_buf);
+			pr_debug("sm5714-charger: regmap: %s\n", temp_buf);
 			memset(temp_buf, 0x0, sizeof(temp_buf));
 		}
 	}
-	pr_info("sm5714-charger: regmap: %s\n", temp_buf);
+	pr_debug("sm5714-charger: regmap: %s\n", temp_buf);
 
 }
 
@@ -538,11 +538,11 @@ ssize_t sm5714_chg_store_attrs(struct device *dev, struct device_attribute *attr
 				u8 data = y;
 
 				if (sm5714_update_reg(charger->i2c, addr, data, 0xFF) < 0) {
-					dev_info(charger->dev,
+					dev_dbg(charger->dev,
 						"%s: addr: 0x%x write fail\n", __func__, addr);
 				}
 			} else {
-				dev_info(charger->dev,
+				dev_dbg(charger->dev,
 					"%s: addr: 0x%x is wrong\n", __func__, x);
 			}
 		}
@@ -581,7 +581,7 @@ static int psy_chg_get_status(struct sm5714_charger_data *charger)
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS1, &reg_st1);
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS2, &reg_st2);
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS3, &reg_st3);
-	dev_info(charger->dev, "%s: STATUS1(0x%02x), STATUS2(0x%02x), STATUS3(0x%02x)\n",
+	dev_dbg(charger->dev, "%s: STATUS1(0x%02x), STATUS2(0x%02x), STATUS3(0x%02x)\n",
 		__func__, reg_st1, reg_st2, reg_st3);
 
 	if (reg_st2 & (0x1 << 5)) { /* check: Top-off */
@@ -635,7 +635,7 @@ static int psy_chg_get_charge_type(struct sm5714_charger_data *charger)
 
 	if (charger->is_charging) {
 		if (charger->slow_rate_chg_mode) {
-			dev_info(charger->dev, "%s: slow rate charge mode\n", __func__);
+			dev_dbg(charger->dev, "%s: slow rate charge mode\n", __func__);
 			charge_type = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
 		} else {
 			charge_type = POWER_SUPPLY_CHARGE_TYPE_FAST;
@@ -669,10 +669,10 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 	return 0;
 #endif
 
-	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
+	dev_dbg(charger->dev, "%s: psp=%d\n", __func__, psp);
 
 	if (atomic_read(&charger->shutdown_cnt) > 0) {
-		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		dev_dbg(charger->dev, "%s: charger already shutdown\n", __func__);
 		return -EINVAL;
 	}
 
@@ -709,7 +709,7 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 			break;
 		case POWER_SUPPLY_EXT_PROP_SHIPMODE_TEST:
 			val->intval = chg_get_en_shipmode(charger);
-			pr_info("%s: manual ship mode set as %s\n", __func__, val->intval ? "enable" : "disable");
+			pr_debug("%s: manual ship mode set as %s\n", __func__, val->intval ? "enable" : "disable");
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
 			val->intval = charger->charge_mode;
@@ -717,10 +717,10 @@ static int sm5714_chg_get_property(struct power_supply *psy,
 		case POWER_SUPPLY_EXT_PROP_CHIP_ID:
 			if (sm5714_read_reg(charger->i2c, SM5714_CHG_REG_DEVICEID, &reg) >= 0) {
 				val->intval = (reg &= 0x3);
-				pr_info("%s: SM5714_CHG_DEVICEID 0x%x\n", __func__, reg);
+				pr_debug("%s: SM5714_CHG_DEVICEID 0x%x\n", __func__, reg);
 			} else {
 				val->intval = 0;
-				pr_info("%s: SM5714_CHG_DEVICEID FAIL\n", __func__);
+				pr_debug("%s: SM5714_CHG_DEVICEID FAIL\n", __func__);
 			}
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHARGER_IC_NAME:
@@ -744,7 +744,7 @@ static void sm5714_chg_buck_control(struct sm5714_charger_data *charger, bool bu
 #endif
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip buck_control\n", __func__);
+		pr_debug("%s: Factory Mode Skip buck_control\n", __func__);
 		return;
 	}
 
@@ -757,7 +757,7 @@ static void sm5714_chg_buck_control(struct sm5714_charger_data *charger, bool bu
 		chg_set_enq4fet(charger, 0);
 	}
 
-	pr_info("%s: buck status(%d)\n", __func__, buck_on);
+	pr_debug("%s: buck status(%d)\n", __func__, buck_on);
 
 }
 
@@ -766,7 +766,7 @@ static void sm5714_chg_charging(struct sm5714_charger_data *charger, int chg_en)
 	u8 reg;
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip chg charging\n", __func__);
+		pr_debug("%s: Factory Mode Skip chg charging\n", __func__);
 		return;
 	}
 
@@ -781,7 +781,7 @@ static void sm5714_chg_charging(struct sm5714_charger_data *charger, int chg_en)
 	chg_set_enq4fet(charger, chg_en);
 	chg_set_wdt_enable(charger, chg_en);
 
-	pr_info("%s: charging en(%d)\n", __func__, chg_en);
+	pr_debug("%s: charging en(%d)\n", __func__, chg_en);
 }
 
 /*
@@ -799,7 +799,7 @@ static void sm5714_chg_vbatreg_recovery(struct sm5714_charger_data *charger)
 	charger->pdata->chg_float_voltage_down_offset_mv = 0;
 
 	before_batreg = chg_get_regulation_voltage(charger);
-	dev_info(charger->dev, "float voltage recovery [%dmV] -> [%dmV]\n",
+	dev_dbg(charger->dev, "float voltage recovery [%dmV] -> [%dmV]\n",
 				before_batreg, charger->pdata->chg_float_voltage);
 
 	chg_set_batreg(charger, charger->pdata->chg_float_voltage);
@@ -834,7 +834,7 @@ static void autodown_vbatreg_work(struct work_struct *work)
 	charger->autodown_cnt++;
 
 	psy_do_property("sm5714-fuelgauge", get,	POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
-	dev_info(charger->dev, "[%d]VNOW_READ[%d mV]\n", charger->autodown_cnt, value.intval);
+	dev_dbg(charger->dev, "[%d]VNOW_READ[%d mV]\n", charger->autodown_cnt, value.intval);
 
 
 	aub_voltage = value.intval - charger->pdata->chg_float_voltage;
@@ -847,7 +847,7 @@ static void autodown_vbatreg_work(struct work_struct *work)
 		return;
 	}
 
-	dev_info(charger->dev, "[%d]Vnow[%d mV], stepdown_offset_mv[%d mV]\n",
+	dev_dbg(charger->dev, "[%d]Vnow[%d mV], stepdown_offset_mv[%d mV]\n",
 			charger->autodown_cnt, value.intval, charger->pdata->chg_float_voltage_down_offset_mv);
 	set_voltage = (charger->pdata->chg_float_voltage - charger->pdata->chg_float_voltage_down_offset_mv);
 
@@ -862,12 +862,12 @@ static void psy_chg_set_charging_enable(struct sm5714_charger_data *charger, int
 	bool buck_off_status =
 		(sm5714_charger_oper_get_current_status() & (0x1 << SM5714_CHARGER_OP_EVENT_SUSPEND)) ? 1 : 0;
 
-	dev_info(charger->dev, "charger_mode changed [%d] -> [%d]\n", charger->charge_mode, charge_mode);
+	dev_dbg(charger->dev, "charger_mode changed [%d] -> [%d]\n", charger->charge_mode, charge_mode);
 	charger->pre_charge_mode = charger->charge_mode;
 	charger->charge_mode = charge_mode;
 
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip charging enable Control\n", __func__);
+		pr_debug("%s: Factory Mode Skip charging enable Control\n", __func__);
 		return;
 	}
 
@@ -904,7 +904,7 @@ static bool sm5714_irq_enable(int irq, bool en)
 		disable_irq_nosync(irq);
 		ret = true;
 	}
-	pr_info("%s : irq: %d, en: %d, st: %d\n", __func__, irq, en,
+	pr_debug("%s : irq: %d, en: %d, st: %d\n", __func__, irq, en,
 		irqd_irq_disabled(&irq_to_desc(irq)->irq_data));
 
 	return ret;
@@ -920,14 +920,14 @@ static void sm5714_aicl_irq_enable(struct sm5714_charger_data *charger,
 
 	if (ret) {
 		sm5714_read_reg(charger->i2c, SM5714_CHG_REG_INTMSK2, &reg_data);
-		pr_info("%s: %s aicl : 0x%x\n",
+		pr_debug("%s: %s aicl : 0x%x\n",
 			__func__, en ? "enable" : "disable", reg_data);
 	}
 }
 
 static void psy_chg_set_online(struct sm5714_charger_data *charger, int cable_type)
 {
-	dev_info(charger->dev, "[start] cable_type(%d->%d), op_mode(%d), op_status(0x%x)",
+	dev_dbg(charger->dev, "[start] cable_type(%d->%d), op_mode(%d), op_status(0x%x)",
 			charger->cable_type, cable_type, sm5714_charger_oper_get_current_op_mode(),
 			sm5714_charger_oper_get_current_status());
 
@@ -964,7 +964,7 @@ static void psy_chg_set_online(struct sm5714_charger_data *charger, int cable_ty
 		}
 	}
 
-	dev_info(charger->dev, "[end] op_mode(%d), op_status(0x%x)\n",
+	dev_dbg(charger->dev, "[end] op_mode(%d), op_status(0x%x)\n",
 			sm5714_charger_oper_get_current_op_mode(),
 			sm5714_charger_oper_get_current_status());
 }
@@ -987,10 +987,10 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 		power_supply_get_drvdata(psy);
 	enum power_supply_ext_property ext_psp = (enum power_supply_ext_property) psp;
 
-	dev_info(charger->dev, "%s: psp=%d\n", __func__, psp);
+	dev_dbg(charger->dev, "%s: psp=%d\n", __func__, psp);
 
 	if (atomic_read(&charger->shutdown_cnt) > 0) {
-		dev_info(charger->dev, "%s: charger already shutdown\n", __func__);
+		dev_dbg(charger->dev, "%s: charger already shutdown\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1002,18 +1002,18 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 		psy_chg_set_online(charger, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		dev_info(charger->dev, "input limit changed [%dmA] -> [%dmA]\n",
+		dev_dbg(charger->dev, "input limit changed [%dmA] -> [%dmA]\n",
 			charger->input_current, val->intval);
 		chg_set_input_current_limit(charger, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
-		dev_info(charger->dev, "charging current changed [%dmA] -> [%dmA]\n",
+		dev_dbg(charger->dev, "charging current changed [%dmA] -> [%dmA]\n",
 			charger->charging_current, val->intval);
 		charger->charging_current = val->intval;
 		chg_set_charging_current(charger, charger->charging_current);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
-		dev_info(charger->dev, "float voltage changed [%dmV] -> [%dmV]\n",
+		dev_dbg(charger->dev, "float voltage changed [%dmV] -> [%dmV]\n",
 			charger->pdata->chg_float_voltage, val->intval);
 		charger->pdata->chg_float_voltage = val->intval;
 		chg_set_batreg(charger, charger->pdata->chg_float_voltage);
@@ -1049,7 +1049,7 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 			u16 float_voltage;
 
 			float_voltage = val->intval;
-			pr_info("%s: factory voltage regulation (%d)\n", __func__, float_voltage);
+			pr_debug("%s: factory voltage regulation (%d)\n", __func__, float_voltage);
 			/*chg_set_batreg(charger, val->intval);*/
 			if (float_voltage <= 3700)
 				offset = 0x0;
@@ -1068,11 +1068,11 @@ static int sm5714_chg_set_property(struct power_supply *psy,
 		}
 			break;
 		case POWER_SUPPLY_EXT_PROP_CURRENT_MEASURE:
-			pr_info("%s: bypass mode is %s\n", __func__, val->intval ? "enable" : "disable");
+			pr_debug("%s: bypass mode is %s\n", __func__, val->intval ? "enable" : "disable");
 			chg_set_en_bypass_mode(charger, val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_SHIPMODE_TEST:
-			pr_info("%s: manual ship mode is %s\n", __func__, val->intval ? "enable" : "disable");
+			pr_debug("%s: manual ship mode is %s\n", __func__, val->intval ? "enable" : "disable");
 			chg_set_en_shipmode(charger, val->intval);
 			break;
 		case POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED:
@@ -1128,12 +1128,12 @@ static int sm5714_otg_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
-		dev_info(charger->dev, "%s: OTG %s\n", __func__,
+		dev_dbg(charger->dev, "%s: OTG %s\n", __func__,
 			val->intval ? "ON" : "OFF");
 		psy_chg_set_otg_control(charger, val->intval);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
-		pr_info("POWER_SUPPLY_PROP_VOLTAGE_MAX, set otg current limit %dmA\n", (val->intval) ? 1500 : 900);
+		pr_debug("POWER_SUPPLY_PROP_VOLTAGE_MAX, set otg current limit %dmA\n", (val->intval) ? 1500 : 900);
 		break;
 	default:
 		return -EINVAL;
@@ -1163,7 +1163,7 @@ static inline int _reduce_input_limit_current(struct sm5714_charger_data *charge
 
 	charger->input_current = chg_get_input_current_limit(charger);
 
-	dev_info(charger->dev, "reduce input-limit: [%dmA] to [%dmA]\n",
+	dev_dbg(charger->dev, "reduce input-limit: [%dmA] to [%dmA]\n",
 			input_limit, charger->input_current);
 
 	return charger->input_current;
@@ -1176,14 +1176,14 @@ static inline void _check_slow_rate_charging(struct sm5714_charger_data *charger
 	if (charger->input_current <= SLOW_CHARGING_CURRENT_STANDARD &&
 			charger->cable_type != SEC_BATTERY_CABLE_NONE) {
 
-		dev_info(charger->dev, "slow-rate charging on : input current(%dmA), cable-type(%d)\n",
+		dev_dbg(charger->dev, "slow-rate charging on : input current(%dmA), cable-type(%d)\n",
 			charger->input_current, charger->cable_type);
 
 		charger->slow_rate_chg_mode = true;
 		psy_do_property("battery", set, POWER_SUPPLY_PROP_CHARGE_TYPE, value);
 	}
 
-	dev_info(charger->dev, "%s - done\n", __func__);
+	dev_dbg(charger->dev, "%s - done\n", __func__);
 }
 
 
@@ -1194,7 +1194,7 @@ static void aicl_work(struct work_struct *work)
 	bool aicl_on = false;
 	u8 reg, aicl_cnt = 0;
 
-	dev_info(charger->dev, "%s - start\n", __func__);
+	dev_dbg(charger->dev, "%s - start\n", __func__);
 
 	mutex_lock(&charger->charger_mutex);
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS2, &reg);
@@ -1212,12 +1212,12 @@ static void aicl_work(struct work_struct *work)
 		}
 		msleep(50);
 		sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS2, &reg);
-		dev_info(charger->dev, "%s - STATUS2 [0x%x]\n", __func__, reg);
+		dev_dbg(charger->dev, "%s - STATUS2 [0x%x]\n", __func__, reg);
 	}
 
 	mutex_unlock(&charger->charger_mutex);
 
-	dev_info(charger->dev, "%s - aicl_on(%d)\n", __func__, aicl_on);
+	dev_dbg(charger->dev, "%s - aicl_on(%d)\n", __func__, aicl_on);
 	if (aicl_on) {
 		union power_supply_propval value;
 
@@ -1229,14 +1229,14 @@ static void aicl_work(struct work_struct *work)
 
 	__pm_relax(charger->aicl_ws);
 
-	dev_info(charger->dev, "%s - done\n", __func__);
+	dev_dbg(charger->dev, "%s - done\n", __func__);
 }
 
 static irqreturn_t chg_vbuspok_isr(int irq, void *data)
 {
 	struct sm5714_charger_data *charger = data;
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 
 	return IRQ_HANDLED;
 }
@@ -1245,7 +1245,7 @@ static irqreturn_t chg_aicl_isr(int irq, void *data)
 {
 	struct sm5714_charger_data *charger = data;
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 
 	__pm_stay_awake(charger->aicl_ws);
 	queue_delayed_work(charger->wqueue, &charger->aicl_work, msecs_to_jiffies(50));
@@ -1264,16 +1264,16 @@ static void sm5714_init_aicl_irq(struct sm5714_charger_data *charger)
 		pr_err("%s: fail to request aicl IRQ: %d: %d\n",
 		       __func__, charger->irq_aicl, ret);
 	}
-	pr_info("%s: %d\n", __func__, irqd_irq_disabled(&irq_to_desc(charger->irq_aicl)->irq_data));
+	pr_debug("%s: %d\n", __func__, irqd_irq_disabled(&irq_to_desc(charger->irq_aicl)->irq_data));
 }
 
 static irqreturn_t chg_done_isr(int irq, void *data)
 {
 	struct sm5714_charger_data *charger = data;
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 	if (sm5714_get_facmode()) {
-		pr_info("%s: Factory Mode Skip chg done\n", __func__);
+		pr_debug("%s: Factory Mode Skip chg done\n", __func__);
 		return IRQ_HANDLED;
 	}
 
@@ -1289,7 +1289,7 @@ static irqreturn_t chg_vsysovp_isr(int irq, void *data)
 {
 	struct sm5714_charger_data *charger = data;
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 
 	return IRQ_HANDLED;
 }
@@ -1299,11 +1299,11 @@ static irqreturn_t chg_vbusuvlo_isr(int irq, void *data)
 	struct sm5714_charger_data *charger = data;
 	u8 reg;
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, &reg);
 	if (reg & 0x02) {
-		dev_info(charger->dev, "%s: bypass mode enabled\n",
+		dev_dbg(charger->dev, "%s: bypass mode enabled\n",
 			__func__);
 	}
 
@@ -1320,11 +1320,11 @@ static irqreturn_t chg_otgfail_isr(int irq, void *data)
 	o_notify = get_otg_notify();
 #endif
 
-	dev_info(charger->dev, "%s: irq=%d\n", __func__, irq);
+	dev_dbg(charger->dev, "%s: irq=%d\n", __func__, irq);
 
 	sm5714_read_reg(charger->i2c, SM5714_CHG_REG_STATUS3, &reg);
 	if (reg & 0x04) {
-		dev_info(charger->dev, "%s: otg overcurrent limit\n",
+		dev_dbg(charger->dev, "%s: otg overcurrent limit\n",
 			__func__);
 		/* send otg ocp noti */
 #ifdef CONFIG_USB_HOST_NOTIFY
@@ -1342,7 +1342,7 @@ static irqreturn_t pogo_irq_thread(int irq, void *data)
 {
 	struct sm5714_charger_data *charger = data;
 
-	pr_info("%s: irq(%d), pogo_int(%d)\n", __func__,
+	pr_debug("%s: irq(%d), pogo_int(%d)\n", __func__,
 		irq, gpio_get_value(charger->pdata->gpio_pogo_int));
 
 	__pm_stay_awake(charger->pogo_det_ws);
@@ -1363,13 +1363,13 @@ static void pogo_init_work(struct work_struct *work)
 	if (ret < 0)
 		pr_err("%s: failed to request pogo_int irq(ret = %d)\n", __func__, ret);
 
-	pr_info("%s: pogo_int(%d)\n", __func__,
+	pr_debug("%s: pogo_int(%d)\n", __func__,
 		gpio_get_value(charger->pdata->gpio_pogo_int));
 
 	__pm_stay_awake(charger->pogo_det_ws);
 	queue_delayed_work(charger->wqueue, &charger->pogo_detect_work, msecs_to_jiffies(50));
 
-	dev_info(charger->dev, "%s - done\n", __func__);
+	dev_dbg(charger->dev, "%s - done\n", __func__);
 }
 
 static void pogo_detect_work(struct work_struct *work)
@@ -1379,19 +1379,19 @@ static void pogo_detect_work(struct work_struct *work)
 	union power_supply_propval val = {0, };
 	int vbus;
 
-	dev_info(charger->dev, "%s - start\n", __func__);
+	dev_dbg(charger->dev, "%s - start\n", __func__);
 
 	if (!gpio_get_value(charger->pdata->gpio_pogo_int)) {
 		vbus = sm5714_muic_get_vbus_voltage();
 		val.intval = (vbus >= 8000 ? 2 : 1);
-		pr_info("%s: vbus(%d)\n", __func__, vbus);
+		pr_debug("%s: vbus(%d)\n", __func__, vbus);
 	} else
 		val.intval = 0;
 
 	psy_do_property("pogo", set, POWER_SUPPLY_PROP_ONLINE, val);
 	__pm_relax(charger->pogo_det_ws);
 
-	dev_info(charger->dev, "%s - done\n", __func__);
+	dev_dbg(charger->dev, "%s - done\n", __func__);
 }
 #endif
 
@@ -1408,21 +1408,21 @@ static inline void sm5714_chg_init(struct sm5714_charger_data *charger)
 	chg_set_lxslope(charger, charger->pdata->chg_lxslope);
 	chg_print_regmap(charger);
 
-	dev_info(charger->dev, "%s: init done.\n", __func__);
+	dev_dbg(charger->dev, "%s: init done.\n", __func__);
 }
 
 #define FREE_IRQ(_irq, _dev_id, _name)					\
 do {									\
 	if (_irq) {							\
 		free_irq(_irq, _dev_id);				\
-		pr_info("%s: IRQ(%d):%s free done\n", \
+		pr_debug("%s: IRQ(%d):%s free done\n", \
 				__func__, _irq, _name);			\
 	}								\
 } while (0)
 
 static void sm5714_charger_free_irqs(struct sm5714_charger_data *charger)
 {
-	pr_info("%s: start\n", __func__);
+	pr_debug("%s: start\n", __func__);
 
 	/* free Charger IRQ */
 	FREE_IRQ(charger->irq_vbuspok, charger, "vbuspok-irq");
@@ -1432,7 +1432,7 @@ static void sm5714_charger_free_irqs(struct sm5714_charger_data *charger)
 	FREE_IRQ(charger->irq_otgfail, charger, "irq_otgfail-irq");
 	FREE_IRQ(charger->irq_aicl, charger, "aicl-irq-irq");
 
-	pr_info("%s: end\n", __func__);
+	pr_debug("%s: end\n", __func__);
 }
 
 static int sm5714_charger_parse_dt(struct device *dev,
@@ -1444,10 +1444,10 @@ static int sm5714_charger_parse_dt(struct device *dev,
 	ret = of_property_read_u32(np, "sm5714,chg_lxslope",
 					&pdata->chg_lxslope);
 	if (ret) {
-		pr_info("%s: sm5714,chg_lxslope is Empty\n", __func__);
+		pr_debug("%s: sm5714,chg_lxslope is Empty\n", __func__);
 		pdata->chg_lxslope = 1; /* b01 : default */
 	}
-	pr_info("%s: sm5714,chg_lxslope is %d\n", __func__,
+	pr_debug("%s: sm5714,chg_lxslope is %d\n", __func__,
 		pdata->chg_lxslope);
 
 #if IS_ENABLED(CONFIG_USE_POGO)
@@ -1455,14 +1455,14 @@ static int sm5714_charger_parse_dt(struct device *dev,
 	if (ret >= 0) {
 		pdata->gpio_pogo_int = ret;
 		pdata->irq_pogo_int = gpio_to_irq(pdata->gpio_pogo_int);
-		pr_info("%s: gpio_pogo_int = 0x%x, irq_pogo_int = 0x%x\n",
+		pr_debug("%s: gpio_pogo_int = 0x%x, irq_pogo_int = 0x%x\n",
 			__func__, pdata->gpio_pogo_int, pdata->irq_pogo_int);
 	} else
 		pr_err("%s: failed to get pogo_int\n", __func__);
 #endif
 
 	pdata->chg_float_voltage_down_en = of_property_read_bool(np, "sm5714,chg_float_voltage_down_en");
-	pr_info("%s: sm5714,chg_float_voltage_down_en is %d\n", __func__,
+	pr_debug("%s: sm5714,chg_float_voltage_down_en is %d\n", __func__,
 		pdata->chg_float_voltage_down_en);
 
 	if (pdata->chg_float_voltage_down_en) {
@@ -1472,7 +1472,7 @@ static int sm5714_charger_parse_dt(struct device *dev,
 	/* The offset value is 0 when vbatreg auto-down, regardless of the dt file setting. */
 	pdata->chg_float_voltage_down_offset_mv = 0;
 
-	pr_info("%s: sm5714,chg_float_voltage_down_offset_mv is %d\n", __func__,
+	pr_debug("%s: sm5714,chg_float_voltage_down_offset_mv is %d\n", __func__,
 		pdata->chg_float_voltage_down_offset_mv);
 
 	np = of_find_node_by_name(NULL, "battery");
@@ -1482,19 +1482,19 @@ static int sm5714_charger_parse_dt(struct device *dev,
 		ret = of_property_read_u32(np, "battery,chg_float_voltage",
 						&pdata->chg_float_voltage);
 		if (ret) {
-			dev_info(dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
+			dev_dbg(dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
 			pdata->chg_float_voltage = 4350;
 		}
-		pr_info("%s: battery,chg_float_voltage is %d\n",
+		pr_debug("%s: battery,chg_float_voltage is %d\n",
 			__func__, pdata->chg_float_voltage);
 
 		ret = of_property_read_u32(np, "battery,chg_ocp_current",
 					&pdata->chg_ocp_current);
 		if (ret) {
-			pr_info("%s: battery,chg_ocp_current is Empty\n", __func__);
+			pr_debug("%s: battery,chg_ocp_current is Empty\n", __func__);
 			pdata->chg_ocp_current = 5400; /* mA */
 		}
-		pr_info("%s: battery,chg_ocp_current is %d\n", __func__,
+		pr_debug("%s: battery,chg_ocp_current is %d\n", __func__,
 			pdata->chg_ocp_current);
 
 		pdata->boosting_voltage_aicl = of_property_read_bool(np,
@@ -1504,7 +1504,7 @@ static int sm5714_charger_parse_dt(struct device *dev,
 			     "battery,ovp_bypass_mode");
 	}
 
-	dev_info(dev, "%s: parse dt done.\n", __func__);
+	dev_dbg(dev, "%s: parse dt done.\n", __func__);
 	return 0;
 }
 
@@ -1545,7 +1545,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	int ret = 0;
 	u8 reg_data1 = 0, reg_data2 = 0, reg_data3 = 0, reg_data4 = 0;
 
-	dev_info(&pdev->dev, "%s: probe start\n", __func__);
+	dev_dbg(&pdev->dev, "%s: probe start\n", __func__);
 	charger = kzalloc(sizeof(*charger), GFP_KERNEL);
 	if (!charger)
 		return -ENOMEM;
@@ -1580,7 +1580,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
 	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
 	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
-	dev_info(&pdev->dev, "%s: read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
+	dev_dbg(&pdev->dev, "%s: read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
 		__func__, reg_data1, reg_data2, reg_data3, reg_data4);
 
 	if ((reg_data1 != 0x93) || (reg_data2 != 0x10) || (reg_data3 != 0x9E) || (reg_data4 != 0x80)) {
@@ -1605,7 +1605,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 		sm5714_write_reg(charger->i2c, 0x57, 0x00);
 		sm5714_update_reg(charger->i2c, 0x6B, (0x0 << 2), (0x1 << 2));
 		sm5714_write_reg(charger->i2c, 0x51, 0x00);
-		dev_info(&pdev->dev, "%s: option bit write all\n", __func__);
+		dev_dbg(&pdev->dev, "%s: option bit write all\n", __func__);
 	}
 
 	// re-read, for check write.
@@ -1613,7 +1613,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 	sm5714_read_reg(charger->i2c, 0xED, &reg_data2);
 	sm5714_read_reg(charger->i2c, 0xE4, &reg_data3);
 	sm5714_read_reg(charger->i2c, 0xCB, &reg_data4);
-	dev_info(&pdev->dev, "%s: again read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
+	dev_dbg(&pdev->dev, "%s: again read sm5714 option bits [0x%X,0x%X,0x%X,0x%X]\n",
 		__func__, reg_data1, reg_data2, reg_data3, reg_data4);
 
 	/* Re-cycle Buck contdition */
@@ -1718,7 +1718,7 @@ static int sm5714_charger_probe(struct platform_device *pdev)
 
 	sec_chg_set_dev_init(SC_DEV_MAIN_CHG);
 
-	dev_info(&pdev->dev, "%s: probe done[%s].\n", __func__, SM5714_CHARGER_VERSION);
+	dev_dbg(&pdev->dev, "%s: probe done[%s].\n", __func__, SM5714_CHARGER_VERSION);
 
 	return 0;
 
@@ -1791,7 +1791,7 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 	struct sm5714_charger_data *charger =
 		platform_get_drvdata(pdev);
 
-	pr_info("%s: ++\n", __func__);
+	pr_debug("%s: ++\n", __func__);
 
 	atomic_inc(&charger->shutdown_cnt);
 
@@ -1809,7 +1809,7 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 			/* disable bypass mode */
 			sm5714_read_reg(charger->i2c, SM5714_CHG_REG_FACTORY1, &reg);
 			if (reg & 0x02) {
-				pr_info("%s: bypass mode is enabled\n", __func__);
+				pr_debug("%s: bypass mode is enabled\n", __func__);
 				chg_set_en_bypass_mode(charger, false);
 			}
 		}
@@ -1817,7 +1817,7 @@ static void sm5714_charger_shutdown(struct platform_device *pdev)
 		pr_err("%s: not sm5714 i2c client", __func__);
 	}
 
-	pr_info("%s: --\n", __func__);
+	pr_debug("%s: --\n", __func__);
 }
 
 static SIMPLE_DEV_PM_OPS(sm5714_charger_pm_ops, sm5714_charger_suspend,

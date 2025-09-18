@@ -85,7 +85,7 @@ static int batterylog_proc_show(struct seq_file *m, void *v)
 
 	if (!temp_buffer)
 		goto err;
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 
 	if (sec_bat_get_lpmode()) {
 		seq_printf(m,
@@ -197,7 +197,7 @@ int register_batterylog_proc(void)
 		pr_err("%s already registered\n", __func__);
 		goto err;
 	}
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	mutex_init(&batterylog_root.battery_log_lock);
 
 	batterylog_root.batterylog_buffer
@@ -206,7 +206,7 @@ int register_batterylog_proc(void)
 		ret = -ENOMEM;
 		goto err;
 	}
-	pr_info("%s size=%zu\n", __func__, sizeof(struct batterylog_buf));
+	pr_debug("%s size=%zu\n", __func__, sizeof(struct batterylog_buf));
 	proc_create("batterylog", 0, NULL, &batterylog_proc_fops);
 	batterylog_root.init = 1;
 
@@ -217,7 +217,7 @@ EXPORT_SYMBOL(register_batterylog_proc);
 
 void unregister_batterylog_proc(void)
 {
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	mutex_destroy(&batterylog_root.battery_log_lock);
 	kfree(batterylog_root.batterylog_buffer);
 	batterylog_root.batterylog_buffer = NULL;

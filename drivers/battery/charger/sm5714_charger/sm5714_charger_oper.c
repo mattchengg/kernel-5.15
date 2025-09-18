@@ -133,7 +133,7 @@ static void sm5714_charger_oper_set_batreg(u16 float_voltage)
 		offset = 0x15;    /* default Offset : 4.2V */
 	}
 
-	pr_info("%s:  set as  (mV=%d) batreg Control\n", __func__, float_voltage);
+	pr_debug("%s:  set as  (mV=%d) batreg Control\n", __func__, float_voltage);
 
 	sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CHGCNTL4, ((offset & 0x3F) << 0), (0x3F << 0));
 }
@@ -157,7 +157,7 @@ static inline int change_op_table(unsigned char new_status)
 {
 	int i = 0;
 
-	pr_info("%s: Old table[%d] info (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
+	pr_debug("%s: Old table[%d] info (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
 			__func__, oper_info->table_index, oper_info->current_table.status,
 			oper_info->current_table.oper_mode, oper_info->current_table.BST_OUT,
 			oper_info->current_table.OTG_CURRENT);
@@ -188,11 +188,11 @@ static inline int change_op_table(unsigned char new_status)
 	/* Factory 523K-JIG Test : Torch Light - Prevent VBUS input source */
 	if ((sm5714_charger_op_mode_table[i].status & 0x02) &&
 			(oper_info->factory_RID == RID_255K || oper_info->factory_RID == RID_523K)) {
-		pr_info("sm5714-charger: %s: skip Flash Boost mode for Factory JIG fled:torch test\n", __func__);
+		pr_debug("sm5714-charger: %s: skip Flash Boost mode for Factory JIG fled:torch test\n", __func__);
 	/* Factory 523K-JIG Test : Flash Light - Prevent VBUS input source */
 	} else if ((sm5714_charger_op_mode_table[i].status & 0x04) &&
 			(oper_info->factory_RID == RID_255K || oper_info->factory_RID == RID_523K)) {
-		pr_info("sm5714-charger: %s: skip Flash Boost mode for Factory JIG fled:flash test\n", __func__);
+		pr_debug("sm5714-charger: %s: skip Flash Boost mode for Factory JIG fled:flash test\n", __func__);
 	} else {
 		set_OP_MODE(oper_info->i2c, sm5714_charger_op_mode_table[i].oper_mode);
 		oper_info->current_table.oper_mode = sm5714_charger_op_mode_table[i].oper_mode;
@@ -200,7 +200,7 @@ static inline int change_op_table(unsigned char new_status)
 	oper_info->current_table.status = new_status;
 	oper_info->table_index = i;
 
-	pr_info("%s: New table[%d] (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
+	pr_debug("%s: New table[%d] (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
 			__func__, oper_info->table_index, oper_info->current_table.status,
 			oper_info->current_table.oper_mode, oper_info->current_table.BST_OUT,
 			oper_info->current_table.OTG_CURRENT);
@@ -230,7 +230,7 @@ int sm5714_charger_oper_push_event(int event_type, bool enable)
 		pr_err("sm5714-charger: %s: required init op_mode table\n", __func__);
 		return -ENOENT;
 	}
-	pr_info("sm5714-charger: %s: event_type=%d, enable=%d\n", __func__, event_type, enable);
+	pr_debug("sm5714-charger: %s: event_type=%d, enable=%d\n", __func__, event_type, enable);
 
 	mutex_lock(&oper_info->op_mutex);
 
@@ -258,7 +258,7 @@ int sm5714_charger_oper_table_init(struct sm5714_dev *sm5714)
 	struct device_node *np = NULL;
 
 	if (oper_info) {
-		pr_info("sm5714-charger: %s: already initialized\n", __func__);
+		pr_debug("sm5714-charger: %s: already initialized\n", __func__);
 		return 0;
 	}
 
@@ -296,17 +296,17 @@ int sm5714_charger_oper_table_init(struct sm5714_dev *sm5714)
 	} else {
 		ret = of_property_read_u32(np, "battery,chg_float_voltage", &oper_info->chg_float_voltage);
 		if (ret) {
-			dev_info(sm5714->dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
+			dev_dbg(sm5714->dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
 			oper_info->chg_float_voltage = 4350;
 		}
-		pr_info("%s: battery,chg_float_voltage is %d\n", __func__, oper_info->chg_float_voltage);
+		pr_debug("%s: battery,chg_float_voltage is %d\n", __func__, oper_info->chg_float_voltage);
 
 		oper_info->set_factory_619k = of_property_read_bool(np, "battery,set_factory_619k");
-		pr_info("%s: battery,set_factory_619k %d\n", __func__,
+		pr_debug("%s: battery,set_factory_619k %d\n", __func__,
 			oper_info->set_factory_619k);
 	}
 
-	pr_info("%s: current table[%d] (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
+	pr_debug("%s: current table[%d] (STATUS: 0x%x, MODE: %d, BST_OUT: 0x%x, OTG_CURRENT: 0x%x)\n",
 			__func__, oper_info->table_index, oper_info->current_table.status,
 			oper_info->current_table.oper_mode, oper_info->current_table.BST_OUT,
 			oper_info->current_table.OTG_CURRENT);
@@ -413,7 +413,7 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 		oper_info->factory_RID = rid;
 
 		sm5714_read_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL, &reg);
-		pr_info("%s: enable factory mode configuration(RID=%d, vbuslimit=0x%02X)\n", __func__, rid, reg);
+		pr_debug("%s: enable factory mode configuration(RID=%d, vbuslimit=0x%02X)\n", __func__, rid, reg);
 	} else {
 		if (oper_info->set_factory_619k) {
 			sm5714_update_reg(oper_info->i2c, SM5714_CHG_REG_CNTL2,
@@ -433,7 +433,7 @@ int sm5714_charger_oper_en_factory_mode(int dev_type, int rid, bool enable)
 
 		oper_info->factory_RID = 0;
 		sm5714_read_reg(oper_info->i2c, SM5714_CHG_REG_VBUSCNTL, &reg);
-		pr_info("%s: disable factory mode configuration(vbuslimit=0x%02X)\n", __func__, reg);
+		pr_debug("%s: disable factory mode configuration(vbuslimit=0x%02X)\n", __func__, reg);
 	}
 
 	return 0;
@@ -459,7 +459,7 @@ int sm5714_charger_oper_forced_vbus_limit_control(int mA)
 
 	msleep(msec);
 
-	pr_info("sm5714-charger: %s VBUSLIMIT control 0x%X[%dmA] -> 0x%X[%dmA] (%d ms)\n",
+	pr_debug("sm5714-charger: %s VBUSLIMIT control 0x%X[%dmA] -> 0x%X[%dmA] (%d ms)\n",
 		__func__, old_offset, old_mA, new_offset, mA, msec);
 
 	return 0;

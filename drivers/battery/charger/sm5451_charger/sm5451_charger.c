@@ -149,7 +149,7 @@ static u32 sm5451_get_vbatreg(struct sm5451_charger *sm5451)
 	sm5451_read_reg(sm5451, SM5451_REG_REG1, &reg);
 	offset = ((reg & 0x3) * 50) + 50;
 
-	dev_info(sm5451->dev, "%s: vbatovp=%d, offset=%d\n",
+	dev_dbg(sm5451->dev, "%s: vbatovp=%d, offset=%d\n",
 		__func__, vbatovp, offset);
 
 	return (vbatovp - offset);
@@ -168,7 +168,7 @@ static int sm5451_set_vbatreg(struct sm5451_charger *sm5451, u32 vbatreg)
 	else
 		reg = (vbatovp - 4000) / 10;
 
-	dev_info(sm5451->dev, "%s: vbatovp=%d, offset=%d reg=0x%x\n",
+	dev_dbg(sm5451->dev, "%s: vbatovp=%d, offset=%d reg=0x%x\n",
 		__func__, vbatovp, offset, reg);
 
 	return sm5451_update_reg(sm5451, SM5451_REG_VBAT_OVP, reg, 0x7F, 0);
@@ -184,7 +184,7 @@ static u32 sm5451_get_ibuslim(struct sm5451_charger *sm5451)
 	sm5451_read_reg(sm5451, SM5451_REG_CNTL5, &reg);
 	offset = ((reg & 0x3) * 100) + 100;
 
-	dev_info(sm5451->dev, "%s: ibusocp=%d, offset=%d\n",
+	dev_dbg(sm5451->dev, "%s: ibusocp=%d, offset=%d\n",
 		__func__, ibusocp, offset);
 
 	return ibusocp - offset;
@@ -200,7 +200,7 @@ static int sm5451_set_ibuslim(struct sm5451_charger *sm5451, u32 ibuslim)
 	ibusocp = ibuslim + offset;
 	reg = (ibusocp - 500) / 100;
 
-	dev_info(sm5451->dev, "%s: ibusocp=%d, offset=%d reg=0x%x\n",
+	dev_dbg(sm5451->dev, "%s: ibusocp=%d, offset=%d reg=0x%x\n",
 		__func__, ibusocp, offset, reg);
 
 	return sm5451_update_reg(sm5451, SM5451_REG_IBUS_PROT, reg, 0x3F, 0);
@@ -266,7 +266,7 @@ static int sm5451_enable_adc_oneshot(struct sm5451_charger *sm5451, u8 enable)
 			msleep(25);
 			sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &reg);
 			if ((reg & SM5451_FLAG3_ADCDONE) == 0)
-				dev_info(sm5451->dev, "%s: fail to adc done(FLAG3=0x%02X)\n", __func__, reg);
+				dev_dbg(sm5451->dev, "%s: fail to adc done(FLAG3=0x%02X)\n", __func__, reg);
 			else
 				break;
 		}
@@ -315,7 +315,7 @@ static u8 sm5451_get_reverse_boost_ocp(struct sm5451_charger *sm5451)
 	op_mode = sm5451_get_op_mode(sm5451);
 	if (op_mode == OP_MODE_INIT) {
 		sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &reg);
-		dev_info(sm5451->dev, "%s: FLAG4=0x%x\n", __func__, reg);
+		dev_dbg(sm5451->dev, "%s: FLAG4=0x%x\n", __func__, reg);
 		if (reg & SM5451_FLAG4_IBUSOCP_RVS) {
 			revbsocp = 1;
 			dev_err(sm5451->dev, "%s: detect reverse_boost_ocp\n", __func__);
@@ -374,7 +374,7 @@ static int sm5451_get_vnow(struct sm5451_charger *sm5451)
 		dev_err(sm5451->dev, "%s: cannot get vnow from fg\n", __func__);
 		return -EINVAL;
 	}
-	pr_info("%s %s: vnow=%dmV, target_vbat=%dmV\n", sm_dc->name,
+	pr_debug("%s %s: vnow=%dmV, target_vbat=%dmV\n", sm_dc->name,
 		__func__, value.intval, sm_dc->target_vbat);
 
 	return value.intval;
@@ -439,7 +439,7 @@ static int sm5451_convert_adc(struct sm5451_charger *sm5451, u8 index)
 			break;
 		}
 	}
-	dev_info(sm5451->dev, "%s: index(%d)=[0x%02X,0x%02X], adc=%d\n",
+	dev_dbg(sm5451->dev, "%s: index(%d)=[0x%02X,0x%02X], adc=%d\n",
 		__func__, index, regs[0], regs[1], adc);
 
 	return adc;
@@ -480,7 +480,7 @@ static void sm5451_print_regmap(struct sm5451_charger *sm5451)
 	for (i = 0; i < print_reg_num; ++i)
 		sprintf(temp_buf+strlen(temp_buf), "0x%02X[0x%02X],", SM5451_REG_CNTL1 + i, regs[i]);
 
-	pr_info("sm5451-charger: regmap: %s\n", temp_buf);
+	pr_debug("sm5451-charger: regmap: %s\n", temp_buf);
 	memset(temp_buf, 0x0, sizeof(temp_buf));
 
 	print_reg_num = 8;
@@ -488,7 +488,7 @@ static void sm5451_print_regmap(struct sm5451_charger *sm5451)
 		sm5451_read_reg(sm5451, reg_addr[i], &reg_data);
 		sprintf(temp_buf+strlen(temp_buf), "0x%02X[0x%02X],", reg_addr[i], reg_data);
 	}
-	pr_info("sm5451-charger: regmap: %s\n", temp_buf);
+	pr_debug("sm5451-charger: regmap: %s\n", temp_buf);
 	memset(temp_buf, 0x0, sizeof(temp_buf));
 }
 
@@ -499,7 +499,7 @@ static int sm5451_reverse_boost_enable(struct sm5451_charger *sm5451, bool enabl
 	if (enable && !sm5451->rev_boost) {
 		for (i = 0; i < 2; ++i) {
 			flag3 = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG3);
-			dev_info(sm5451->dev, "%s: FLAG3:0x%x i=%d\n", __func__, flag3, i);
+			dev_dbg(sm5451->dev, "%s: FLAG3:0x%x i=%d\n", __func__, flag3, i);
 			if (flag3 & (SM5451_FLAG3_VBUSUVLO | SM5451_FLAG3_VBUSPOK))
 				msleep(20);
 			else
@@ -513,7 +513,7 @@ static int sm5451_reverse_boost_enable(struct sm5451_charger *sm5451, bool enabl
 			sm5451_read_reg(sm5451, SM5451_REG_FLAG2, &flag2);
 			sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &flag3);
 			sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &flag4);
-			dev_info(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x i=%d\n",
+			dev_dbg(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x i=%d\n",
 				__func__, flag1, flag2, flag3, flag4, i);
 			if (flag4 & SM5451_FLAG4_RVSRDY)
 				break;
@@ -525,11 +525,11 @@ static int sm5451_reverse_boost_enable(struct sm5451_charger *sm5451, bool enabl
 			return -EINVAL;
 		}
 		sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_CONTINUOUS);
-		dev_info(sm5451->dev, "%s: ON\n", __func__);
+		dev_dbg(sm5451->dev, "%s: ON\n", __func__);
 	} else if (!enable) {
 		sm5451_set_op_mode(sm5451, OP_MODE_INIT);
 		sm5451_set_adc_mode(sm5451->i2c, SM_DC_ADC_MODE_OFF);
-		dev_info(sm5451->dev, "%s: OFF\n", __func__);
+		dev_dbg(sm5451->dev, "%s: OFF\n", __func__);
 	}
 	sm5451->rev_boost = enable;
 
@@ -555,9 +555,9 @@ static int sm5451_prechg_enable(struct sm5451_charger *sm5451, bool enable)
 
 	if (enable) {
 		if (state > SM_DC_EOC || sm5451_check_charging_enable(sm5451)) {
-			dev_info(sm5451->dev, "%s: charging state (state=%d)\n", __func__, state);
+			dev_dbg(sm5451->dev, "%s: charging state (state=%d)\n", __func__, state);
 		} else {
-			dev_info(sm5451->dev, "%s: ON\n", __func__);
+			dev_dbg(sm5451->dev, "%s: ON\n", __func__);
 			for (i = 0; i < 2; ++i) {
 				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xEA);
 				sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0xAE);
@@ -570,12 +570,12 @@ static int sm5451_prechg_enable(struct sm5451_charger *sm5451, bool enable)
 					sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
 				else
 					break;
-				dev_info(sm5451->dev, "%s: fail to pre-charging\n", __func__);
+				dev_dbg(sm5451->dev, "%s: fail to pre-charging\n", __func__);
 			}
 			usleep_range(10000, 11000);
 		}
 	} else {
-		dev_info(sm5451->dev, "%s: OFF\n", __func__);
+		dev_dbg(sm5451->dev, "%s: OFF\n", __func__);
 		sm5451_write_reg(sm5451, SM5451_REG_PRECHG_MODE, 0x00);
 	}
 
@@ -601,19 +601,19 @@ static int sm5451_start_charging(struct sm5451_charger *sm5451)
 		psy_dc_sub = power_supply_get_by_name("sm5451-charger-sub");
 		if (!psy_dc_sub) {
 			sm_dc->i2c_sub = NULL;
-			dev_info(sm5451->dev, "%s: start single dc mode\n", __func__);
+			dev_dbg(sm5451->dev, "%s: start single dc mode\n", __func__);
 		} else {
 			sm5451_sub = power_supply_get_drvdata(psy_dc_sub);
 			sm_dc->i2c_sub = sm5451_sub->i2c;
-			dev_info(sm5451->dev, "%s: start dual dc mode\n", __func__);
+			dev_dbg(sm5451->dev, "%s: start dual dc mode\n", __func__);
 		}
 	} else {
-		dev_info(sm5451->dev, "%s: unable to start sub dc standalone\n", __func__);
+		dev_dbg(sm5451->dev, "%s: unable to start sub dc standalone\n", __func__);
 		return -EINVAL;
 	}
 
 	if (state < SM_DC_CHECK_VBAT) {
-		dev_info(sm5451->dev, "%s: charging off state (state=%d)\n", __func__, state);
+		dev_dbg(sm5451->dev, "%s: charging off state (state=%d)\n", __func__, state);
 		ret = sm5451_sw_reset(sm5451);
 		if (ret < 0) {
 			dev_err(sm5451->dev, "%s: fail to sw reset(ret=%d)\n", __func__, ret);
@@ -632,7 +632,7 @@ static int sm5451_start_charging(struct sm5451_charger *sm5451)
 			sm5451_prechg_enable(sm5451_sub, 1);
 		}
 	} else if (state == SM_DC_CV_MAN) {
-		dev_info(sm5451->dev, "%s: skip start charging (state=%d)\n", __func__, state);
+		dev_dbg(sm5451->dev, "%s: skip start charging (state=%d)\n", __func__, state);
 		return 0;
 	}
 
@@ -719,7 +719,7 @@ static int psy_chg_get_online(struct sm5451_charger *sm5451)
 
 	cable_online = sm5451->cable_online < 1 ? 0 : 1;
 	flag = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG3);
-	dev_info(sm5451->dev, "%s: FLAG3=0x%x\n", __func__, flag);
+	dev_dbg(sm5451->dev, "%s: FLAG3=0x%x\n", __func__, flag);
 	vbus_pok = (flag >> 7) & 0x1;
 
 	if (vbus_pok != cable_online) {
@@ -739,7 +739,7 @@ static int psy_chg_get_status(struct sm5451_charger *sm5451)
 	flag2 = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG2);
 	flag3 = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG3);
 	flag4 = sm5451_get_flag_status(sm5451, SM5451_REG_FLAG4);
-	dev_info(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x\n",
+	dev_dbg(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x\n",
 		__func__, flag1, flag2, flag3, flag4);
 
 	if (sm5451_check_charging_enable(sm5451)) {
@@ -764,7 +764,7 @@ static int psy_chg_get_health(struct sm5451_charger *sm5451)
 
 	if (state == SM_DC_ERR) {
 		health = POWER_SUPPLY_EXT_HEALTH_DC_ERR;
-		dev_info(sm5451->dev, "%s: chg_state=%d, health=%d\n",
+		dev_dbg(sm5451->dev, "%s: chg_state=%d, health=%d\n",
 			__func__, state, health);
 	} else if (state >= SM_DC_PRE_CC && state <= SM_DC_CV) {
 		chg_on = sm5451_check_charging_enable(sm5451);
@@ -775,7 +775,7 @@ static int psy_chg_get_health(struct sm5451_charger *sm5451)
 			health = POWER_SUPPLY_EXT_HEALTH_DC_ERR;
 		}
 
-		dev_info(sm5451->dev, "%s: chg_on=%d, flag3=0x%x, health=%d\n",
+		dev_dbg(sm5451->dev, "%s: chg_on=%d, flag3=0x%x, health=%d\n",
 			__func__, chg_on, flag, health);
 	}
 
@@ -786,7 +786,7 @@ static int psy_chg_get_chg_vol(struct sm5451_charger *sm5451)
 {
 	u32 chg_vol = sm5451_get_vbatreg(sm5451);
 
-	dev_info(sm5451->dev, "%s: VBAT_REG=%dmV\n", __func__, chg_vol);
+	dev_dbg(sm5451->dev, "%s: VBAT_REG=%dmV\n", __func__, chg_vol);
 
 	return chg_vol;
 }
@@ -795,7 +795,7 @@ static int psy_chg_get_input_curr(struct sm5451_charger *sm5451)
 {
 	u32 input_curr = sm5451_get_ibuslim(sm5451);
 
-	dev_info(sm5451->dev, "%s: IBUSLIM=%dmA\n", __func__, input_curr);
+	dev_dbg(sm5451->dev, "%s: IBUSLIM=%dmA\n", __func__, input_curr);
 
 	return input_curr;
 }
@@ -807,7 +807,7 @@ static int psy_chg_get_ext_monitor_work(struct sm5451_charger *sm5451)
 	int adc_vbus, adc_ibus, adc_vbat, adc_ibat, adc_them, adc_tdie;
 
 	if (state < SM_DC_CHECK_VBAT && (sm_dc->chip_id != SM5451_SUB)) {
-		dev_info(sm5451->dev, "%s: charging off state (state=%d)\n", __func__, state);
+		dev_dbg(sm5451->dev, "%s: charging off state (state=%d)\n", __func__, state);
 		return -EINVAL;
 	}
 
@@ -818,7 +818,7 @@ static int psy_chg_get_ext_monitor_work(struct sm5451_charger *sm5451)
 	adc_them = sm5451_convert_adc(sm5451, SM5451_ADC_THEM);
 	adc_tdie = sm5451_convert_adc(sm5451, SM5451_ADC_TDIE);
 
-	pr_info("sm5451-charger: adc_monitor: vbus:%d:ibus:%d:vbat:%d:ibat:%d:them:%d:tdie:%d\n",
+	pr_debug("sm5451-charger: adc_monitor: vbus:%d:ibus:%d:vbat:%d:ibat:%d:them:%d:tdie:%d\n",
 		adc_vbus, adc_ibus, adc_vbat, adc_ibat, adc_them, adc_tdie);
 	sm5451_print_regmap(sm5451);
 
@@ -861,7 +861,7 @@ static int psy_chg_get_ext_measure_input(struct sm5451_charger *sm5451, int inde
 		break;
 	}
 
-	dev_info(sm5451->dev, "%s: index=%d, adc=%d\n", __func__, index, adc);
+	dev_dbg(sm5451->dev, "%s: index=%d, adc=%d\n", __func__, index, adc);
 
 	return adc;
 }
@@ -877,7 +877,7 @@ static int psy_chg_get_ext_direct_charger_chg_status(
 	int state = sm_dc_get_current_state(sm_dc);
 
 	val->strval = sm5451_dc_state_str[state];
-	pr_info("%s: CHARGER_STATUS(%s)\n", __func__, val->strval);
+	pr_debug("%s: CHARGER_STATUS(%s)\n", __func__, val->strval);
 
 	return 0;
 }
@@ -890,7 +890,7 @@ static int sm5451_chg_get_property(struct power_supply *psy,
 		(enum power_supply_ext_property)psp;
 	int adc_them;
 
-	dev_info(sm5451->dev, "%s: psp=%d\n", __func__, psp);
+	dev_dbg(sm5451->dev, "%s: psp=%d\n", __func__, psp);
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -979,7 +979,7 @@ static int psy_chg_set_online(struct sm5451_charger *sm5451, int online)
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
 	int ret = 0;
 
-	dev_info(sm5451->dev, "%s: online=%d\n", __func__, online);
+	dev_dbg(sm5451->dev, "%s: online=%d\n", __func__, online);
 
 	if (online < 2) {
 		if (sm_dc_get_current_state(sm_dc) > SM_DC_EOC)
@@ -998,7 +998,7 @@ static int psy_chg_set_const_chg_voltage(struct sm5451_charger *sm5451, int vbat
 	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
-	dev_info(sm5451->dev, "%s: [%dmV] to [%dmV]\n", __func__, sm5451->target_vbat, vbat);
+	dev_dbg(sm5451->dev, "%s: [%dmV] to [%dmV]\n", __func__, sm5451->target_vbat, vbat);
 
 	if (sm5451->target_vbat != vbat || state < SM_DC_CHECK_VBAT) {
 		sm5451->target_vbat = vbat;
@@ -1012,7 +1012,7 @@ static int psy_chg_set_chg_curr(struct sm5451_charger *sm5451, int ibat)
 {
 	int ret = 0;
 
-	dev_info(sm5451->dev, "%s: dldn't support cc_loop\n", __func__);
+	dev_dbg(sm5451->dev, "%s: dldn't support cc_loop\n", __func__);
 	sm5451->target_ibat = ibat;
 
 	return ret;
@@ -1024,12 +1024,12 @@ static int psy_chg_set_input_curr(struct sm5451_charger *sm5451, int ibus)
 	int state = sm_dc_get_current_state(sm_dc);
 	int ret = 0;
 
-	dev_info(sm5451->dev, "%s: ibus [%dmA] to [%dmA]\n", __func__, sm5451->target_ibus, ibus);
+	dev_dbg(sm5451->dev, "%s: ibus [%dmA] to [%dmA]\n", __func__, sm5451->target_ibus, ibus);
 
 	if (sm5451->target_ibus != ibus || state < SM_DC_CHECK_VBAT) {
 		sm5451->target_ibus = ibus;
 		if (sm5451->target_ibus < SM5451_TA_MIN_CURRENT) {
-			dev_info(sm5451->dev, "%s: can't used less then ta_min_current(%dmA)\n",
+			dev_dbg(sm5451->dev, "%s: can't used less then ta_min_current(%dmA)\n",
 				__func__, SM5451_TA_MIN_CURRENT);
 			sm5451->target_ibus = SM5451_TA_MIN_CURRENT;
 		}
@@ -1043,7 +1043,7 @@ static int psy_chg_set_const_chg_voltage_max(struct sm5451_charger *sm5451, int 
 {
 	struct sm_dc_info *sm_dc = select_sm_dc_info(sm5451);
 
-	dev_info(sm5451->dev, "%s: max_vbat [%dmA] to [%dmA]\n",
+	dev_dbg(sm5451->dev, "%s: max_vbat [%dmA] to [%dmA]\n",
 		__func__, sm5451->max_vbat, max_vbat);
 
 	sm5451->max_vbat = max_vbat;
@@ -1060,7 +1060,7 @@ static int psy_chg_ext_wdt_control(struct sm5451_charger *sm5451, int wdt_contro
 	else
 		sm5451->wdt_disable = 0;
 
-	dev_info(sm5451->dev, "%s: wdt_disable=%d\n", __func__, sm5451->wdt_disable);
+	dev_dbg(sm5451->dev, "%s: wdt_disable=%d\n", __func__, sm5451->wdt_disable);
 
 	return 0;
 }
@@ -1074,7 +1074,7 @@ static int sm5451_chg_set_property(struct power_supply *psy,
 
 	int ret = 0;
 
-	dev_info(sm5451->dev, "%s: psp=%d, val-intval=%d\n", __func__, psp, val->intval);
+	dev_dbg(sm5451->dev, "%s: psp=%d, val-intval=%d\n", __func__, psp, val->intval);
 
 	switch ((int)psp) {
 	case POWER_SUPPLY_PROP_ONLINE:
@@ -1114,11 +1114,11 @@ static int sm5451_chg_set_property(struct power_supply *psy,
 			else
 				sm5451_enable_adc_oneshot(sm5451, 0);
 			sm5451->force_adc_on = val->intval;
-			pr_info("%s: ADC_CTRL : %d\n", __func__, val->intval);
+			pr_debug("%s: ADC_CTRL : %d\n", __func__, val->intval);
 			break;
 
 		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE:
-			pr_info("[PASS_THROUGH] %s: called\n", __func__);
+			pr_debug("[PASS_THROUGH] %s: called\n", __func__);
 			if (val->intval)
 				ret = sm5451_start_pass_through_charging(sm5451);
 			else
@@ -1126,7 +1126,7 @@ static int sm5451_chg_set_property(struct power_supply *psy,
 			break;
 
 		case POWER_SUPPLY_EXT_PROP_PASS_THROUGH_MODE_TA_VOL:
-			pr_info("[PASS_THROUGH_VOL] %s: called\n", __func__);
+			pr_debug("[PASS_THROUGH_VOL] %s: called\n", __func__);
 			sm5451_set_pass_through_ta_vol(sm5451, val->intval);
 			break;
 
@@ -1274,7 +1274,7 @@ static int sm5451_dc_set_charging_config(struct i2c_client *i2c, u32 cv_gl, u32 
 	sm5451_set_vbatreg(sm5451, vbatreg);
 	sm5451_set_freq(sm5451, freq);
 
-	pr_info("%s %s: vbat_reg=%dmV, ibus_lim=%dmA, freq=%dkHz\n", sm_dc->name,
+	pr_debug("%s %s: vbat_reg=%dmV, ibus_lim=%dmA, freq=%dkHz\n", sm_dc->name,
 		__func__, vbatreg, ibuslim, SM5451_freq_val[freq]);
 
 	return 0;
@@ -1311,7 +1311,7 @@ static int sm5451_x2bat_dc_set_charging_config(struct i2c_client *i2c, u32 cv_gl
 	sm5451_set_vbatreg(sm5451, vbatreg);
 	sm5451_set_freq(sm5451, freq);
 
-	pr_info("%s %s: vbat_reg=%dmV, ibus_lim=%dmA, freq=%dkHz\n", sm_dc->name,
+	pr_debug("%s %s: vbat_reg=%dmV, ibus_lim=%dmA, freq=%dkHz\n", sm_dc->name,
 		__func__, vbatreg, ibuslim, SM5451_freq_val[freq]);
 
 	return 0;
@@ -1331,7 +1331,7 @@ static u32 sm5451_get_dc_error_status(struct i2c_client *i2c)
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG2, &flag2);
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &flag3);
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &flag4);
-	pr_info("%s %s: FLAG:0x%x:0x%x:0x%x:0x%x\n", sm_dc->name,
+	pr_debug("%s %s: FLAG:0x%x:0x%x:0x%x:0x%x\n", sm_dc->name,
 		__func__, flag1, flag2, flag3, flag4);
 
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG1, &flag1_s);
@@ -1339,7 +1339,7 @@ static u32 sm5451_get_dc_error_status(struct i2c_client *i2c)
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &flag3_s);
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &flag4_s);
 	op_mode = sm5451_get_op_mode(sm5451);
-	pr_info("%s %s: FLAG:0x%x:0x%x:0x%x:0x%x op_mode=0x%x\n", sm_dc->name,
+	pr_debug("%s %s: FLAG:0x%x:0x%x:0x%x:0x%x op_mode=0x%x\n", sm_dc->name,
 		__func__, flag1_s, flag2_s, flag3_s, flag4_s, op_mode);
 	mutex_unlock(&sm5451->i2c_lock);
 
@@ -1347,7 +1347,7 @@ static u32 sm5451_get_dc_error_status(struct i2c_client *i2c)
 		vnow = sm5451_get_vnow(sm5451);
 
 	if ((op_mode == OP_MODE_INIT) && (sm_dc->wq.retry_cnt < 3) && (sm_dc->chip_id != SM5451_SUB)) {
-		pr_info("%s %s: try to retry, cnt:%d\n", sm_dc->name, __func__, sm_dc->wq.retry_cnt);
+		pr_debug("%s %s: try to retry, cnt:%d\n", sm_dc->name, __func__, sm_dc->wq.retry_cnt);
 		sm_dc->wq.retry_cnt++;
 		err = SM_DC_ERR_RETRY;
 	} else if (op_mode == OP_MODE_INIT) {
@@ -1368,23 +1368,23 @@ static u32 sm5451_get_dc_error_status(struct i2c_client *i2c)
 			err += SM_DC_ERR_UNKNOWN;
 
 		if (err == SM_DC_ERR_UNKNOWN && sm_dc->chip_id == SM5451_SUB)
-			pr_info("%s %s: SM_DC_ERR_NONE\n", sm_dc->name, __func__);
+			pr_debug("%s %s: SM_DC_ERR_NONE\n", sm_dc->name, __func__);
 		else
-			pr_info("%s %s: SM_DC_ERR(err=0x%x)\n", sm_dc->name, __func__, err);
+			pr_debug("%s %s: SM_DC_ERR(err=0x%x)\n", sm_dc->name, __func__, err);
 	} else {
 		if (flag3_s & SM5451_FLAG3_VBUSUVLO) {
-			pr_info("%s %s: vbus uvlo detected, try to retry\n", sm_dc->name, __func__);
+			pr_debug("%s %s: vbus uvlo detected, try to retry\n", sm_dc->name, __func__);
 			err = SM_DC_ERR_RETRY;
 		} else if ((flag2 & SM5451_FLAG2_VBATREG) || (flag2_s & SM5451_FLAG2_VBATREG) ||
 					(sm_dc->target_vbat <= vnow)) {
-			pr_info("%s %s: VBATREG detected\n", sm_dc->name, __func__);
+			pr_debug("%s %s: VBATREG detected\n", sm_dc->name, __func__);
 			err = SM_DC_ERR_VBATREG;
 		} else if (flag4_s & SM5451_FLAG4_IBUSREG) {
-			pr_info("%s %s: IBUSREG detected\n", sm_dc->name, __func__);
+			pr_debug("%s %s: IBUSREG detected\n", sm_dc->name, __func__);
 			err = SM_DC_ERR_IBUSREG;
 		} else if (vnow < 0) {
 			err = SM_DC_ERR_INVAL_VBAT;
-			pr_info("%s %s: SM_DC_ERR(err=0x%x)\n", sm_dc->name, __func__, err);
+			pr_debug("%s %s: SM_DC_ERR(err=0x%x)\n", sm_dc->name, __func__, err);
 		}
 	}
 
@@ -1404,7 +1404,7 @@ static int sm5451_send_pd_msg(struct i2c_client *i2c, struct sm_dc_power_source_
 
 	ret = sec_pd_select_pps(ta->pdo_pos, ta->v, ta->c);
 	if (ret == -EBUSY) {
-		pr_info("%s %s: request again\n", sm_dc->name, __func__);
+		pr_debug("%s %s: request again\n", sm_dc->name, __func__);
 		msleep(100);
 		ret = sec_pd_select_pps(ta->pdo_pos, ta->v, ta->c);
 	}
@@ -1435,7 +1435,7 @@ static int sm5451_get_apdo_max_power(struct i2c_client *i2c, struct sm_dc_power_
 		sm_dc->ta.p_max = ta->p_max;
 	}
 
-	dev_info(sm5451->dev, "%s: pdo_pos:%d, max_vol:%dmV, max_cur:%dmA, max_pwr:%dmW\n",
+	dev_dbg(sm5451->dev, "%s: pdo_pos:%d, max_vol:%dmV, max_cur:%dmA, max_pwr:%dmW\n",
 			__func__, ta->pdo_pos, ta->v_max, ta->c_max, ta->p_max);
 	return ret;
 }
@@ -1445,7 +1445,7 @@ static u32 sm5451_get_target_ibus(struct i2c_client *i2c)
 {
 	struct sm5451_charger *sm5451 = i2c_get_clientdata(i2c);
 
-	dev_info(sm5451->dev, "%s: %dmA\n", __func__, sm5451->target_ibus);
+	dev_dbg(sm5451->dev, "%s: %dmA\n", __func__, sm5451->target_ibus);
 	return sm5451->target_ibus;
 }
 
@@ -1485,7 +1485,7 @@ static irqreturn_t sm5451_irq_thread(int irq, void *data)
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG2, &flag2);
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG3, &flag3);
 	sm5451_read_reg(sm5451, SM5451_REG_FLAG4, &flag4);
-	dev_info(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x\n",
+	dev_dbg(sm5451->dev, "%s: FLAG:0x%x:0x%x:0x%x:0x%x\n",
 		__func__, flag1, flag2, flag3, flag4);
 
 	/* check forced CUT-OFF status */
@@ -1530,27 +1530,27 @@ static irqreturn_t sm5451_irq_thread(int irq, void *data)
 	}
 
 	if (flag2 & SM5451_FLAG2_VBATREG) {
-		dev_info(sm5451->dev, "%s: VBATREG detected\n", __func__);
+		dev_dbg(sm5451->dev, "%s: VBATREG detected\n", __func__);
 		sm_dc_report_interrupt_event(sm_dc, SM_DC_INT_VBATREG);
 	}
 	if (flag2 & SM5451_FLAG2_IBATREG)
-		dev_info(sm5451->dev, "%s: IBATREG detected\n", __func__);
+		dev_dbg(sm5451->dev, "%s: IBATREG detected\n", __func__);
 
 	if (flag4 & SM5451_FLAG4_IBUSREG)
-		dev_info(sm5451->dev, "%s: IBUSREG detected\n", __func__);
+		dev_dbg(sm5451->dev, "%s: IBUSREG detected\n", __func__);
 
 	if (flag3 & SM5451_FLAG3_VBUSPOK)
-		dev_info(sm5451->dev, "%s: VBUSPOK detected\n", __func__);
+		dev_dbg(sm5451->dev, "%s: VBUSPOK detected\n", __func__);
 
 	if (flag3 & SM5451_FLAG3_VBUSUVLO)
-		dev_info(sm5451->dev, "%s: VBUSUVLO detected\n", __func__);
+		dev_dbg(sm5451->dev, "%s: VBUSUVLO detected\n", __func__);
 
 	if (flag3 & SM5451_FLAG3_WTDTMR) {
-		dev_info(sm5451->dev, "%s: Watchdog Timer expired\n", __func__);
+		dev_dbg(sm5451->dev, "%s: Watchdog Timer expired\n", __func__);
 		sm_dc_report_interrupt_event(sm_dc, SM_DC_INT_WDTOFF);
 	}
 
-	dev_info(sm5451->dev, "closed %s\n", __func__);
+	dev_dbg(sm5451->dev, "closed %s\n", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -1561,7 +1561,7 @@ static int sm5451_irq_init(struct sm5451_charger *sm5451)
 	u8 reg;
 
 	sm5451->irq = gpio_to_irq(sm5451->pdata->irq_gpio);
-	dev_info(sm5451->dev, "%s: irq_gpio=%d, irq=%d\n", __func__,
+	dev_dbg(sm5451->dev, "%s: irq_gpio=%d, irq=%d\n", __func__,
 	sm5451->pdata->irq_gpio, sm5451->irq);
 
 	ret = gpio_request(sm5451->pdata->irq_gpio, "sm5540_irq");
@@ -1629,72 +1629,72 @@ static int sm5451_charger_parse_dt(struct device *dev,
 		return -EINVAL;
 	}
 	pdata->irq_gpio = of_get_named_gpio(np_sm5451, "sm5451,irq-gpio", 0);
-	dev_info(dev, "parse_dt: irq_gpio=%d\n", pdata->irq_gpio);
+	dev_dbg(dev, "parse_dt: irq_gpio=%d\n", pdata->irq_gpio);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,pps_lr", &pdata->pps_lr);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,pps_lr is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,pps_lr is Empty\n", __func__);
 		pdata->pps_lr = 340000;
 	}
-	dev_info(dev, "parse_dt: pps_lr=%d\n", pdata->pps_lr);
+	dev_dbg(dev, "parse_dt: pps_lr=%d\n", pdata->pps_lr);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,rpcm", &pdata->rpcm);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,rpcm is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,rpcm is Empty\n", __func__);
 		pdata->rpcm = 55000;
 	}
-	dev_info(dev, "parse_dt: rpcm=%d\n", pdata->rpcm);
+	dev_dbg(dev, "parse_dt: rpcm=%d\n", pdata->rpcm);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,r_ttl", &pdata->r_ttl);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,r_ttl is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,r_ttl is Empty\n", __func__);
 		pdata->r_ttl = 99000;
 	}
-	dev_info(dev, "parse_dt: r_ttl=%d\n", pdata->r_ttl);
+	dev_dbg(dev, "parse_dt: r_ttl=%d\n", pdata->r_ttl);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,freq", &pdata->freq);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,freq is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,freq is Empty\n", __func__);
 		pdata->freq = SM5451_FREQ_750KHZ;
 	}
-	dev_info(dev, "parse_dt: freq=%dkHz\n", SM5451_freq_val[pdata->freq]);
+	dev_dbg(dev, "parse_dt: freq=%dkHz\n", SM5451_freq_val[pdata->freq]);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,freq_byp", &pdata->freq_byp);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,freq_byp is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,freq_byp is Empty\n", __func__);
 		pdata->freq_byp = SM5451_FREQ_375KHZ;
 	}
-	dev_info(dev, "parse_dt: freq_byp=%dkHz\n", SM5451_freq_val[pdata->freq_byp]);
+	dev_dbg(dev, "parse_dt: freq_byp=%dkHz\n", SM5451_freq_val[pdata->freq_byp]);
 
 	ret = of_property_read_u32_array(np_sm5451, "sm5451,freq_siop", pdata->freq_siop, 2);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,freq_siop is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,freq_siop is Empty\n", __func__);
 		pdata->freq_siop[0] = SM5451_FREQ_200KHZ;
 		pdata->freq_siop[1] = SM5451_FREQ_375KHZ;
 	}
-	dev_info(dev, "parse_dt: freq_siop=%dkHz, %dkHz\n",
+	dev_dbg(dev, "parse_dt: freq_siop=%dkHz, %dkHz\n",
 		SM5451_freq_val[pdata->freq_siop[0]], SM5451_freq_val[pdata->freq_siop[1]]);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,topoff", &pdata->topoff);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,topoff is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,topoff is Empty\n", __func__);
 		pdata->topoff = 900;
 	}
-	dev_info(dev, "parse_dt: topoff=%d\n", pdata->topoff);
+	dev_dbg(dev, "parse_dt: topoff=%d\n", pdata->topoff);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,x2bat_mode", &pdata->x2bat_mode);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,x2bat_mode is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,x2bat_mode is Empty\n", __func__);
 		pdata->x2bat_mode = 0;
 	}
-	dev_info(dev, "parse_dt: x2bat_mode=%d\n", pdata->x2bat_mode);
+	dev_dbg(dev, "parse_dt: x2bat_mode=%d\n", pdata->x2bat_mode);
 
 	ret = of_property_read_u32(np_sm5451, "sm5451,en_vbatreg", &pdata->en_vbatreg);
 	if (ret) {
-		dev_info(dev, "%s: sm5451,en_vbatreg is Empty\n", __func__);
+		dev_dbg(dev, "%s: sm5451,en_vbatreg is Empty\n", __func__);
 		pdata->en_vbatreg = 0;
 	}
-	dev_info(dev, "parse_dt: en_vbatreg=%d\n", pdata->en_vbatreg);
+	dev_dbg(dev, "parse_dt: en_vbatreg=%d\n", pdata->en_vbatreg);
 
 	/* Parse: battery node */
 	np_battery = of_find_node_by_name(NULL, "battery");
@@ -1705,23 +1705,23 @@ static int sm5451_charger_parse_dt(struct device *dev,
 	ret = of_property_read_u32(np_battery, "battery,chg_float_voltage",
 		&pdata->battery.chg_float_voltage);
 	if (ret) {
-		dev_info(dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
+		dev_dbg(dev, "%s: battery,chg_float_voltage is Empty\n", __func__);
 		pdata->battery.chg_float_voltage = 4200;
 	}
 	ret = of_property_read_string(np_battery, "battery,charger_name",
 		(char const **)&pdata->battery.sec_dc_name);
 	if (ret) {
-		dev_info(dev, "%s: battery,charger_name is Empty\n", __func__);
+		dev_dbg(dev, "%s: battery,charger_name is Empty\n", __func__);
 		pdata->battery.sec_dc_name = "sec-direct-charger";
 	}
 	ret = of_property_read_string(np_battery, "battery,fuelgauge_name",
 		(char const **)&pdata->battery.fuelgauge_name);
 	if (ret) {
-		dev_info(dev, "%s: battery,fuelgauge_name is Empty\n", __func__);
+		dev_dbg(dev, "%s: battery,fuelgauge_name is Empty\n", __func__);
 		pdata->battery.fuelgauge_name = "sec-fuelgauge";
 	}
 
-	dev_info(dev, "parse_dt: float_v=%d, sec_dc_name=%s, fuelgauge_name=%s\n",
+	dev_dbg(dev, "parse_dt: float_v=%d, sec_dc_name=%s, fuelgauge_name=%s\n",
 	pdata->battery.chg_float_voltage, pdata->battery.sec_dc_name,
 	pdata->battery.fuelgauge_name);
 
@@ -1834,11 +1834,11 @@ static ssize_t chg_store_attrs(struct device *dev,
 				u8 data = y;
 
 				if (sm5451_write_reg(sm5451, addr, data) < 0) {
-					dev_info(sm5451->dev,
+					dev_dbg(sm5451->dev,
 					"%s: addr: 0x%x write fail\n", __func__, addr);
 				}
 			} else {
-				dev_info(sm5451->dev,
+				dev_dbg(sm5451->dev,
 				"%s: addr: 0x%x is wrong\n", __func__, x);
 			}
 		}
@@ -1851,11 +1851,11 @@ static ssize_t chg_store_attrs(struct device *dev,
 				u8 addr = x, data = y, val = z, pos = k;
 
 				if (sm5451_update_reg(sm5451, addr, data, val, pos)) {
-					dev_info(sm5451->dev,
+					dev_dbg(sm5451->dev,
 					"%s: addr: 0x%x write fail\n", __func__, addr);
 				}
 			} else {
-				dev_info(sm5451->dev,
+				dev_dbg(sm5451->dev,
 				"%s: addr: 0x%x is wrong\n", __func__, x);
 			}
 		}
@@ -1955,16 +1955,16 @@ static int sm5451_charger_probe(struct i2c_client *i2c,
 	const struct of_device_id *of_id;
 	int ret, chip;
 
-	dev_info(&i2c->dev, "%s: probe start\n", __func__);
+	dev_dbg(&i2c->dev, "%s: probe start\n", __func__);
 
 	of_id = of_match_device(sm5451_of_match_table, &i2c->dev);
 	if (!of_id) {
-		dev_info(&i2c->dev, "sm5451-Charger matching on node name, compatible is preferred\n");
+		dev_dbg(&i2c->dev, "sm5451-Charger matching on node name, compatible is preferred\n");
 		chip = (enum sm5451_chip_id)id->driver_data;
 	} else {
 		chip = (enum sm5451_chip_id)of_id->data;
 	}
-	dev_info(&i2c->dev, "%s: chip:%d\n", __func__, chip);
+	dev_dbg(&i2c->dev, "%s: chip:%d\n", __func__, chip);
 
 	sm5451 = devm_kzalloc(&i2c->dev, sizeof(struct sm5451_charger), GFP_KERNEL);
 	if (!sm5451)
@@ -2098,7 +2098,7 @@ static int sm5451_charger_probe(struct i2c_client *i2c,
 		goto err_psy_chg;
 	}
 
-	dev_info(sm5451->dev, "%s: done. (rev_id=0x%x)[%s]\n", __func__,
+	dev_dbg(sm5451->dev, "%s: done. (rev_id=0x%x)[%s]\n", __func__,
 		sm5451->pdata->rev_id, SM5451_DC_VERSION);
 
 	return 0;
@@ -2196,7 +2196,7 @@ static struct i2c_driver sm5451_charger_driver = {
 
 static int __init sm5451_i2c_init(void)
 {
-	pr_info("sm5451-charger: %s\n", __func__);
+	pr_debug("sm5451-charger: %s\n", __func__);
 	return i2c_add_driver(&sm5451_charger_driver);
 }
 module_init(sm5451_i2c_init);

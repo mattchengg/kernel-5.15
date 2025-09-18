@@ -20,7 +20,7 @@
 #include "sec_charging_common.h"
 #include "sb_pass_through.h"
 
-#define pt_log(str, ...) pr_info("[PASS-THROUGH]:%s: "str, __func__, ##__VA_ARGS__)
+#define pt_log(str, ...) pr_debug("[PASS-THROUGH]:%s: "str, __func__, ##__VA_ARGS__)
 
 #define PT_MODULE_NAME	"pass-through"
 #define IV_VOTE_NAME	"IV"

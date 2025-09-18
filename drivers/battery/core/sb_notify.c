@@ -96,7 +96,7 @@ static int sb_notify_init(void)
 	INIT_LIST_HEAD(&sb_notify.dev_list);
 
 	init_state = true;
-	pr_info("%s: init = %d\n", __func__, init_state);
+	pr_debug("%s: init = %d\n", __func__, init_state);
 
 skip_init:
 	mutex_unlock(&noti_lock);

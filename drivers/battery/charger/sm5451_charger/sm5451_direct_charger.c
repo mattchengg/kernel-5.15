@@ -140,13 +140,13 @@ static int update_work_state(struct sm_dc_info *sm_dc, u8 state)
 		return -EBUSY;
 	}
 
-	pr_info("%s %s: sm_dc->state=%d, state=%d, update(%d,%d,%d)\n",
+	pr_debug("%s %s: sm_dc->state=%d, state=%d, update(%d,%d,%d)\n",
 		sm_dc->name, __func__, sm_dc->state, state, sm_dc->req_update_vbat,
 		sm_dc->req_update_ibus, sm_dc->req_update_ibat);
 
 	if (sm_dc->state > SM_DC_PRESET && state > SM_DC_PRESET) {		/* going on charging-cycle */
 		if (sm_dc->req_update_vbat || sm_dc->req_update_ibus || sm_dc->req_update_ibat) {
-			pr_info("%s %s: changed chg param, request: update_bat\n", sm_dc->name, __func__);
+			pr_debug("%s %s: changed chg param, request: update_bat\n", sm_dc->name, __func__);
 			request_state_work(sm_dc, SM_DC_UPDAT_BAT, DELAY_NONE);
 			ret = -EINVAL;
 		}
@@ -180,7 +180,7 @@ static int send_power_source_msg(struct sm_dc_info *sm_dc)
 	}
 
 
-	pr_info("%s %s: [send PWR_MSG] pdo=%d, v=%dmV(max=%dmV) c=%dmA(max=%dmA)\n",
+	pr_debug("%s %s: [send PWR_MSG] pdo=%d, v=%dmV(max=%dmV) c=%dmA(max=%dmA)\n",
 			sm_dc->name, __func__, sm_dc->ta.pdo_pos, sm_dc->ta.v,
 			sm_dc->ta.v_max, sm_dc->ta.c, sm_dc->ta.c_max);
 
@@ -213,7 +213,7 @@ static int setup_direct_charging_work_config(struct sm_dc_info *sm_dc)
 	sm_dc->wq.cc_cnt = 0;
 	sm_dc->wq.pps_vcm = 0;
 
-	pr_info("%s %s: CV_GL=%dmV, CI_GL=%dmA, CC_GL=%dmA\n", sm_dc->name, __func__,
+	pr_debug("%s %s: CV_GL=%dmV, CI_GL=%dmA, CC_GL=%dmA\n", sm_dc->name, __func__,
 			sm_dc->wq.cv_gl, sm_dc->wq.ci_gl, sm_dc->wq.cc_gl);
 	sm_dc->ops->set_charging_config(sm_dc->i2c, sm_dc->wq.cv_gl, sm_dc->wq.ci_gl, sm_dc->wq.cc_gl);
 	if (sm_dc->i2c_sub)
@@ -287,7 +287,7 @@ static int get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *vbus, 
 	adc_them = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_THEM);
 	adc_dietemp = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_DIETEMP);
 
-	pr_info("%s %s:vbus:%d:ibus:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
+	pr_debug("%s %s:vbus:%d:ibus:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
 		sm_dc->name, str, adc_vbus, adc_ibus, adc_vout,
 		adc_vbat, adc_ibat, adc_them, adc_dietemp);
 
@@ -301,7 +301,7 @@ static int get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *vbus, 
 			adc_them2 = sm_dc->ops->get_adc_value(sm_dc->i2c_sub, SM_DC_ADC_THEM);
 			adc_dietemp2 = sm_dc->ops->get_adc_value(sm_dc->i2c_sub, SM_DC_ADC_DIETEMP);
 			adc_ibus += adc_ibus2;
-			pr_info("%s %s(s):vbus:%d:ibus:%d:ibus_t:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
+			pr_debug("%s %s(s):vbus:%d:ibus:%d:ibus_t:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
 				sm_dc->name, str, adc_vbus2, adc_ibus2, adc_ibus, adc_vout2,
 				adc_vbat2, adc_ibat2, adc_them2, adc_dietemp2);
 		}
@@ -365,7 +365,7 @@ static inline u32 _calc_pps_v_init_offset(struct sm_dc_info *sm_dc)
 		offset = (sm_dc->ta.c * sm_dc->config.r_ttl) / 1000000;
 	}
 	offset += 200;   /* add to extra initial offset */
-	pr_info("%s %s: pps_c=%dmA, v_init_offset=%dmV\n", sm_dc->name, __func__, sm_dc->ta.c, offset);
+	pr_debug("%s %s: pps_c=%dmA, v_init_offset=%dmV\n", sm_dc->name, __func__, sm_dc->ta.c, offset);
 
 	return offset;
 }
@@ -376,7 +376,7 @@ static inline int _adjust_pps_v(struct sm_dc_info *sm_dc, int pps_v_original)
 
 	adc_vbus = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_VBUS);
 	msleep(DELAY_PPS_UPDATE);
-	pr_info("%s %s: adc_vbus=%dmV, pps_v_original=%dmV\n",
+	pr_debug("%s %s: adc_vbus=%dmV, pps_v_original=%dmV\n",
 		sm_dc->name, __func__, adc_vbus, pps_v_original);
 
 	sm_dc->wq.v_offset = 0;
@@ -389,7 +389,7 @@ static inline int _pd_pre_cc_check_limitation(struct sm_dc_info *sm_dc, int adc_
 	int ret = 0;
 
 	if (adc_ibus == sm_dc->wq.prev_adc_ibus && adc_vbus == sm_dc->wq.prev_adc_vbus) {
-		pr_info("%s %s: adc didn't update yet\n", sm_dc->name, __func__);
+		pr_debug("%s %s: adc didn't update yet\n", sm_dc->name, __func__);
 		/* if continuos adc didn't update yet */
 		return 0;
 	}
@@ -420,13 +420,13 @@ static inline int _pd_pre_cc_check_limitation(struct sm_dc_info *sm_dc, int adc_
 		} else {
 			calc_pps_v = (sm_dc->target_vbat * 2) + calc_reg_v + sm_dc->wq.v_offset;
 			if ((pps_v(calc_pps_v) * sm_dc->wq.ci_gl) > sm_dc->ta.p_max) {
-				pr_info("%s %s: calc_pps_v(%dmV) will be reduced\n", sm_dc->name, __func__, calc_pps_v);
+				pr_debug("%s %s: calc_pps_v(%dmV) will be reduced\n", sm_dc->name, __func__, calc_pps_v);
 				calc_pps_v = ((sm_dc->ta.p_max / sm_dc->wq.ci_gl) - PPS_V_STEP) < 0 ?
 						0 : ((sm_dc->ta.p_max / sm_dc->wq.ci_gl) - PPS_V_STEP);
 			}
 		}
 		sm_dc->ta.v = pps_v(MIN(calc_pps_v, sm_dc->config.dc_vbus_ovp_th - 350));
-		pr_info("%s %s: PPS_LR=%d, RPARA=%d, RSNS=%d, RPCM=%d, R_TTL=%d, calc_reg_v=%dmV, calc_pps_v=%dmV\n",
+		pr_debug("%s %s: PPS_LR=%d, RPARA=%d, RSNS=%d, RPCM=%d, R_TTL=%d, calc_reg_v=%dmV, calc_pps_v=%dmV\n",
 			sm_dc->name, __func__, sm_dc->config.pps_lr, sm_dc->config.rpara,
 			sm_dc->config.rsns, sm_dc->config.rpcm, sm_dc->config.r_ttl, calc_reg_v, calc_pps_v);
 		sm_dc->ta.c = sm_dc->ta.c;
@@ -454,7 +454,7 @@ static inline int _try_to_adjust_cc_up(struct sm_dc_info *sm_dc)
 			if (sm_dc->ta.v > MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350))
 				sm_dc->ta.v = pps_v(MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350));
 		} else {
-			pr_info("%s %s: PPS-TA has been reached limitation(v=%dmV, c=%dmA)\n",
+			pr_debug("%s %s: PPS-TA has been reached limitation(v=%dmV, c=%dmA)\n",
 			sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.c);
 			sm_dc->wq.cc_limit = 1;
 			return -EINVAL;
@@ -523,17 +523,17 @@ static void pd_check_vbat_work(struct work_struct *work)
 	val.intval = 0;
 
 	if (val.intval == 0) {  /* already disabled switching charger */
-		pr_info("%s %s: [request] check_vbat -> preset\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] check_vbat -> preset\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_PRESET, DELAY_NONE);
 
 		psy_do_property(sm_dc->config.sec_dc_name, set,
 				POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
 	} else {
 		adc_vbat = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_VBAT);
-		pr_info("%s %s: adc:vbat=%dmV\n", sm_dc->name, __func__, adc_vbat);
+		pr_debug("%s %s: adc:vbat=%dmV\n", sm_dc->name, __func__, adc_vbat);
 
 		if (adc_vbat > sm_dc->config.dc_min_vbat) {
-			pr_info("%s %s: set_prop - disable sw_chg\n", sm_dc->name, __func__);
+			pr_debug("%s %s: set_prop - disable sw_chg\n", sm_dc->name, __func__);
 			val.intval = 0;
 			psy_do_property(sm_dc->config.sec_dc_name, set,
 					POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
@@ -559,7 +559,7 @@ static void pd_preset_dc_work(struct work_struct *work)
 		request_state_work(sm_dc, SM_DC_ERR, DELAY_NONE);
 		return;
 	}
-	pr_info("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmA, c_max=%dmA, target_ibus=%dmA\n",
+	pr_debug("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmA, c_max=%dmA, target_ibus=%dmA\n",
 			sm_dc->name, __func__, adc_vbat, sm_dc->config.ta_min_voltage, sm_dc->ta.v_max,
 			sm_dc->ta.c_max, sm_dc->target_ibus);
 
@@ -589,13 +589,13 @@ static void pd_preset_dc_work(struct work_struct *work)
 	if (sm_dc->i2c_sub)
 		sm_dc->ops->set_charging_enable(sm_dc->i2c_sub, 1);
 	sm_dc->ops->set_charging_enable(sm_dc->i2c, 1);
-	pr_info("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
+	pr_debug("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
 	/* Pre-update PRE_CC state. for check to charging initial error case */
 	ret = update_work_state(sm_dc, SM_DC_PRE_CC);
 	if (ret < 0)
 		return;
 
-	pr_info("%s %s: [request] preset -> pre_cc\n", sm_dc->name, __func__);
+	pr_debug("%s %s: [request] preset -> pre_cc\n", sm_dc->name, __func__);
 	request_state_work(sm_dc, SM_DC_PRE_CC, delay);
 }
 
@@ -606,7 +606,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 	int delay_time = DELAY_PPS_UPDATE;
 	u8 loop_status = LOOP_INACTIVE;
 
-	pr_info("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
+	pr_debug("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
 	ret = check_error_state(sm_dc, SM_DC_PRE_CC);
 	if (ret < 0)
 		return;
@@ -625,7 +625,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 	switch (loop_status) {
 	case LOOP_VBATREG:
 		sm_dc->wq.cv_cnt = 0;
-		pr_info("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -633,7 +633,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 		return;
 	case LOOP_IBUSREG:
 		if (sm_dc->config.need_to_sw_ocp && sm_dc->wq.v_down == 1) {
-			pr_info("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
+			pr_debug("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
 			ret = sm_dc->ops->check_sw_ocp(sm_dc->i2c);
 			if (ret < 0)
 				return;
@@ -645,8 +645,8 @@ static void pd_pre_cc_work(struct work_struct *work)
 			sm_dc->wq.v_up = 0;
 		} else {
 			sm_dc->ta.v = sm_dc->config.ta_min_voltage;
-			pr_info("%s %s: can't use less then ta_min_voltage\n", sm_dc->name, __func__);
-			pr_info("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
+			pr_debug("%s %s: can't use less then ta_min_voltage\n", sm_dc->name, __func__);
+			pr_debug("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
 			sm_dc->wq.v_down = 0;
 			sm_dc->wq.pps_vcm = 1;
 			sm_dc->wq.pps_cl = 0;
@@ -679,7 +679,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 		if (!sm_dc->wq.pps_cl)
 			sm_dc->wq.pps_vcm = 1;
 
-		pr_info("%s %s: [request] pre_cc -> cc (c_offset=%d, pps_cl=%d)\n", sm_dc->name,
+		pr_debug("%s %s: [request] pre_cc -> cc (c_offset=%d, pps_cl=%d)\n", sm_dc->name,
 				__func__, sm_dc->wq.c_offset, sm_dc->wq.pps_cl);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
@@ -694,7 +694,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 		(sm_dc->ta.c > sm_dc->wq.ci_gl + PRE_CC_ST_IBUS_OFFSET))) {
 		sm_dc->wq.c_offset = 0;
 		sm_dc->wq.cc_limit = 0;
-		pr_info("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -720,7 +720,7 @@ static void pd_pre_cc_work(struct work_struct *work)
 	} else {
 		sm_dc->ta.v += PPS_V_STEP;
 		if (sm_dc->ta.v > MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350)) {
-			pr_info("%s %s: can't increase voltage(v:%d, v_max:%d)\n",
+			pr_debug("%s %s: can't increase voltage(v:%d, v_max:%d)\n",
 				sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max);
 			sm_dc->ta.v = pps_v(MIN(sm_dc->ta.v_max, sm_dc->config.dc_vbus_ovp_th - 350));
 			sm_dc->wq.pps_cl = 1;
@@ -748,7 +748,7 @@ static void pd_cc_work(struct work_struct *work)
 	union power_supply_propval value = {0,};
 #endif
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = check_error_state(sm_dc, SM_DC_CC);
 	if (ret < 0)
@@ -769,19 +769,19 @@ static void pd_cc_work(struct work_struct *work)
 	psy_do_property("battery", get,
 		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
 	if (value.intval) {
-		pr_info("%s: CC MODE will be done by vcell\n", __func__);
+		pr_debug("%s: CC MODE will be done by vcell\n", __func__);
 		loop_status = LOOP_VBATREG;
 	}
 #endif
 	switch (loop_status) {
 	case LOOP_VBATREG:
 		sm_dc->wq.cv_cnt = 0;
-		pr_info("%s %s: [request] cc -> cv\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] cc -> cv\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_CV, DELAY_ADC_UPDATE);
 		return;
 	case LOOP_IBUSREG:
 		if (sm_dc->config.need_to_sw_ocp) {
-			pr_info("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
+			pr_debug("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
 			ret = sm_dc->ops->check_sw_ocp(sm_dc->i2c);
 			if (ret < 0)
 				return;
@@ -838,7 +838,7 @@ static void pd_cv_work(struct work_struct *work)
 	union power_supply_propval value = {0,};
 #endif
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = check_error_state(sm_dc, SM_DC_CV);
 	if (ret < 0)
@@ -893,7 +893,7 @@ static void pd_cv_work(struct work_struct *work)
 	psy_do_property("battery", get,
 		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
 	if (value.intval) {
-		pr_info("%s %s: CV MODE will be done by vcell\n", sm_dc->name, __func__);
+		pr_debug("%s %s: CV MODE will be done by vcell\n", sm_dc->name, __func__);
 		schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
 		return;
 	}
@@ -901,7 +901,7 @@ static void pd_cv_work(struct work_struct *work)
 
 	/* occurred abnormal CV status */
 	if (adc_vbat < sm_dc->target_vbat - 100) {
-		pr_info("%s %s: adnormal cv, [request] cv -> pre_cc\n", sm_dc->name, __func__);
+		pr_debug("%s %s: adnormal cv, [request] cv -> pre_cc\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_ONESHOT);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_ONESHOT);
@@ -913,7 +913,7 @@ static void pd_cv_work(struct work_struct *work)
 	psy_do_property("battery", get,
 		POWER_SUPPLY_EXT_PROP_DIRECT_VBAT_CHECK, value);
 	if (value.intval) {
-		pr_info("%s %s: CV MODE will be done by vcell\n", sm_dc->name, __func__);
+		pr_debug("%s %s: CV MODE will be done by vcell\n", sm_dc->name, __func__);
 		schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
 	}
 #endif
@@ -922,7 +922,7 @@ static void pd_cv_work(struct work_struct *work)
 	if (sm_dc->config.topoff_current > 0) {
 		if ((sm_dc->target_vbat == sm_dc->config.chg_float_voltage) &&
 			(adc_ibus < sm_dc->config.topoff_current)) {
-			pr_info("%s %s: dc done!!\n", sm_dc->name, __func__);
+			pr_debug("%s %s: dc done!!\n", sm_dc->name, __func__);
 			schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
 		}
 	}
@@ -932,7 +932,7 @@ static void pd_cv_work(struct work_struct *work)
 		if (sm_dc->i2c_sub) {
 			if (sm_dc->ops->get_charging_enable(sm_dc->i2c_sub)) {
 				sm_dc->ops->set_charging_enable(sm_dc->i2c_sub, 0);
-				pr_info("%s %s: sub dc done!!\n", sm_dc->name, __func__);
+				pr_debug("%s %s: sub dc done!!\n", sm_dc->name, __func__);
 			}
 		}
 	}
@@ -951,7 +951,7 @@ static void pd_cv_man_work(struct work_struct *work)
 	int ret, adc_ibus, adc_vbus, adc_vbat, delay = DELAY_ADC_UPDATE;
 	u8 loop_status = LOOP_INACTIVE;
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = check_error_state(sm_dc, SM_DC_CV_MAN);
 	if (ret < 0)
@@ -992,7 +992,7 @@ static void pd_update_bat_work(struct work_struct *work)
 	int index, ret, cnt;
 	bool need_to_preset = 1;
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = check_error_state(sm_dc, SM_DC_UPDAT_BAT);
 	if (ret < 0)
@@ -1003,7 +1003,7 @@ static void pd_update_bat_work(struct work_struct *work)
 		if (sm_dc->req_update_vbat && sm_dc->req_update_ibus)
 			break;
 
-		pr_info("%s %s: wait 1sec for step changed\n", sm_dc->name, __func__);
+		pr_debug("%s %s: wait 1sec for step changed\n", sm_dc->name, __func__);
 		msleep(1000);
 	}
 
@@ -1019,13 +1019,13 @@ static void pd_update_bat_work(struct work_struct *work)
 		return;
 
 	if (index & (0x1 << 2))
-		pr_info("%s %s: vbat changed (%dmV)\n", sm_dc->name, __func__, sm_dc->target_vbat);
+		pr_debug("%s %s: vbat changed (%dmV)\n", sm_dc->name, __func__, sm_dc->target_vbat);
 
 	if (index & (0x1 << 1))
-		pr_info("%s %s: ibus changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibus);
+		pr_debug("%s %s: ibus changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibus);
 
 	if (index & 0x1)
-		pr_info("%s %s: ibat changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibat);
+		pr_debug("%s %s: ibat changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibat);
 
 	/* check step change event */
 	if ((index & (0x1 << 2)) && (index & (0x1 << 1))) {
@@ -1036,7 +1036,7 @@ static void pd_update_bat_work(struct work_struct *work)
 	sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_ONESHOT);
 
 	if (need_to_preset) {
-		pr_info("%s %s: [request] update_bat -> preset\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] update_bat -> preset\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_PRESET, DELAY_NONE);
 	} else {
 		setup_direct_charging_work_config(sm_dc);
@@ -1045,7 +1045,7 @@ static void pd_update_bat_work(struct work_struct *work)
 		if (ret < 0)
 			return;
 
-		pr_info("%s %s: [request] update_bat -> pre_cc\n", sm_dc->name,  __func__);
+		pr_debug("%s %s: [request] update_bat -> pre_cc\n", sm_dc->name,  __func__);
 		request_state_work(sm_dc, SM_DC_PRE_CC, DELAY_ADC_UPDATE);
 	}
 }
@@ -1055,7 +1055,7 @@ static void pd_error_work(struct work_struct *work)
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, error_work.work);
 	int ret;
 
-	pr_info("%s %s: err=0x%x\n", sm_dc->name, __func__, sm_dc->err);
+	pr_debug("%s %s: err=0x%x\n", sm_dc->name, __func__, sm_dc->err);
 
 	ret = update_work_state(sm_dc, SM_DC_ERR);
 	if (ret < 0)
@@ -1070,7 +1070,7 @@ static void sec_done_event_work(struct work_struct *work)
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, done_event_work.work);
 	union power_supply_propval value = {0, };
 
-	pr_info("%s called\n", __func__);
+	pr_debug("%s called\n", __func__);
 
 	value.intval = 1;
 	psy_do_property(sm_dc->config.sec_dc_name, set, POWER_SUPPLY_EXT_PROP_DIRECT_DONE, value);
@@ -1084,7 +1084,7 @@ static inline u32 _x2bat_calc_v_init_offset(struct sm_dc_info *sm_dc)
 	u32 offset;
 
 	offset = (((sm_dc->wq.ci_gl * 50) / 100) * sm_dc->config.r_ttl) / 1000000;
-	pr_info("%s %s: ci_gl=%dmA, v_init_offset=%d\n", sm_dc->name,
+	pr_debug("%s %s: ci_gl=%dmA, v_init_offset=%d\n", sm_dc->name,
 			__func__, sm_dc->wq.ci_gl, offset);
 
 	return offset;
@@ -1096,7 +1096,7 @@ static inline void _x2bat_try_to_adjust_cc_down(struct sm_dc_info *sm_dc)
 		sm_dc->ta.v -= PPS_V_STEP;
 	} else {
 		sm_dc->ta.v = sm_dc->config.ta_min_voltage;
-		pr_info("%s %s: can't use less then ta_min_voltage\n", sm_dc->name, __func__);
+		pr_debug("%s %s: can't use less then ta_min_voltage\n", sm_dc->name, __func__);
 	}
 }
 
@@ -1104,7 +1104,7 @@ static inline void _x2bat_try_to_adjust_cc_up(struct sm_dc_info *sm_dc)
 {
 	if (sm_dc->ta.v >=
 		MIN(((sm_dc->ta.p_max * 100) / sm_dc->ta.c) / 100, sm_dc->config.dc_vbus_ovp_th - 350)) {
-		pr_info("%s %s: can't increase voltage(v:%d, v_max:%d)\n",
+		pr_debug("%s %s: can't increase voltage(v:%d, v_max:%d)\n",
 				sm_dc->name, __func__, sm_dc->ta.v, sm_dc->ta.v_max);
 	} else {
 		sm_dc->ta.v += PPS_V_STEP;
@@ -1117,7 +1117,7 @@ static int _x2bat_set_ibusreg_m_down(struct sm_dc_info *sm_dc)
 	sm_dc->wq.ci_gl = MIN(sm_dc->ta.c_max, sm_dc->wq.ci_gl_m + sm_dc->wq.ci_gl_s);
 	sm_dc->wq.cc_gl = sm_dc->wq.ci_gl * 2;
 
-	pr_info("%s %s: CV_GL=%dmV, CI_GL=%dmA, CI_GL_M=%dmA, CI_GL_S=%dmA, CC_GL=%dmA\n", sm_dc->name,
+	pr_debug("%s %s: CV_GL=%dmV, CI_GL=%dmA, CI_GL_M=%dmA, CI_GL_S=%dmA, CC_GL=%dmA\n", sm_dc->name,
 			__func__, sm_dc->wq.cv_gl, sm_dc->wq.ci_gl,
 			sm_dc->wq.ci_gl_m, sm_dc->wq.ci_gl_s, sm_dc->wq.cc_gl);
 	sm_dc->ops->set_charging_config(sm_dc->i2c, sm_dc->wq.cv_gl, sm_dc->wq.ci_gl_m, sm_dc->wq.cc_gl);
@@ -1139,7 +1139,7 @@ static int x2bat_get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *
 	adc_them = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_THEM);
 	adc_dietemp = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_DIETEMP);
 
-	pr_info("%s %s:vbus:%d:ibus:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
+	pr_debug("%s %s:vbus:%d:ibus:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
 		sm_dc->name, str, adc_vbus, adc_ibus, adc_vout,
 		adc_vbat, adc_ibat, adc_them, adc_dietemp);
 
@@ -1153,7 +1153,7 @@ static int x2bat_get_adc_values(struct sm_dc_info *sm_dc, const char *str, int *
 			adc_them2 = sm_dc->ops->get_adc_value(sm_dc->i2c_sub, SM_DC_ADC_THEM);
 			adc_dietemp2 = sm_dc->ops->get_adc_value(sm_dc->i2c_sub, SM_DC_ADC_DIETEMP);
 			adc_ibus_t = adc_ibus + adc_ibus2;
-			pr_info("%s %s(s):vbus:%d:ibus:%d:ibus_t:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
+			pr_debug("%s %s(s):vbus:%d:ibus:%d:ibus_t:%d:vout:%d:vbat:%d:ibat:%d:them:%d:dietemp:%d\n",
 				sm_dc->name, str, adc_vbus2, adc_ibus2, adc_ibus_t, adc_vout2,
 				adc_vbat2, adc_ibat2, adc_them2, adc_dietemp2);
 		} else {
@@ -1214,7 +1214,7 @@ static int x2bat_setup_direct_charging_work_config(struct sm_dc_info *sm_dc)
 	sm_dc->wq.topoff_m = 0;
 	sm_dc->wq.topoff_s = 0;
 
-	pr_info("%s %s: CV_GL=%dmV, CI_GL=%dmA, CI_GL_M=%dmA, CI_GL_S=%dmA, CC_GL=%dmA\n", sm_dc->name,
+	pr_debug("%s %s: CV_GL=%dmV, CI_GL=%dmA, CI_GL_M=%dmA, CI_GL_S=%dmA, CC_GL=%dmA\n", sm_dc->name,
 			__func__, sm_dc->wq.cv_gl, sm_dc->wq.ci_gl,
 			sm_dc->wq.ci_gl_m, sm_dc->wq.ci_gl_s, sm_dc->wq.cc_gl);
 	sm_dc->ops->set_charging_config(sm_dc->i2c, sm_dc->wq.cv_gl, sm_dc->wq.ci_gl_m, sm_dc->wq.cc_gl);
@@ -1346,17 +1346,17 @@ static void x2bat_check_vbat_work(struct work_struct *work)
 	val.intval = 0;
 
 	if (val.intval == 0) {  /* already disabled switching charger */
-		pr_info("%s %s: [request] check_vbat -> preset\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] check_vbat -> preset\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_PRESET, DELAY_NONE);
 
 		psy_do_property(sm_dc->config.sec_dc_name, set,
 				POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
 	} else {
 		adc_vbat = sm_dc->ops->get_adc_value(sm_dc->i2c, SM_DC_ADC_VBAT);
-		pr_info("%s %s: adc:vbat=%dmV\n", sm_dc->name, __func__, adc_vbat);
+		pr_debug("%s %s: adc:vbat=%dmV\n", sm_dc->name, __func__, adc_vbat);
 
 		if (adc_vbat > sm_dc->config.dc_min_vbat) {
-			pr_info("%s %s: set_prop - disable sw_chg\n", sm_dc->name, __func__);
+			pr_debug("%s %s: set_prop - disable sw_chg\n", sm_dc->name, __func__);
 			val.intval = 0;
 			psy_do_property(sm_dc->config.sec_dc_name, set,
 					POWER_SUPPLY_EXT_PROP_CHARGING_ENABLED_DC, val);
@@ -1386,7 +1386,7 @@ static void x2bat_preset_dc_work(struct work_struct *work)
 	if (sm_dc->i2c_sub)
 		target_ibus_sub = sm_dc->ops->get_target_ibus(sm_dc->i2c_sub);
 
-	pr_info("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmA, c_max=%dmA, target_ibus=%dmA\n",
+	pr_debug("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmA, c_max=%dmA, target_ibus=%dmA\n",
 		sm_dc->name, __func__, adc_vbat, sm_dc->config.ta_min_voltage, sm_dc->ta.v_max,
 		sm_dc->ta.c_max, sm_dc->target_ibus + target_ibus_sub);
 
@@ -1416,13 +1416,13 @@ static void x2bat_preset_dc_work(struct work_struct *work)
 	if (sm_dc->i2c_sub)
 		sm_dc->ops->set_charging_enable(sm_dc->i2c_sub, 1);
 	sm_dc->ops->set_charging_enable(sm_dc->i2c, 1);
-	pr_info("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
+	pr_debug("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
 	/* Pre-update PRE_CC state. for check to charging initial error case */
 	ret = update_work_state(sm_dc, SM_DC_PRE_CC);
 	if (ret < 0)
 		return;
 
-	pr_info("%s %s: [request] preset -> pre_cc\n", sm_dc->name, __func__);
+	pr_debug("%s %s: [request] preset -> pre_cc\n", sm_dc->name, __func__);
 	request_state_work(sm_dc, SM_DC_PRE_CC, delay);
 }
 
@@ -1432,7 +1432,7 @@ static void x2bat_pre_cc_work(struct work_struct *work)
 	int ret, adc_ibus, adc_ibus_s, adc_vbus, adc_vbat;
 	u8 loop_status = LOOP_INACTIVE;
 
-	pr_info("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
+	pr_debug("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
 	ret = x2bat_check_error_state(sm_dc, SM_DC_PRE_CC);
 	if (ret < 0)
 		return;
@@ -1458,7 +1458,7 @@ static void x2bat_pre_cc_work(struct work_struct *work)
 		sm_dc->wq.cv_cnt = 0;
 		sm_dc->wq.topoff_m = 0;
 		sm_dc->wq.topoff_s = 0;
-		pr_info("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -1466,7 +1466,7 @@ static void x2bat_pre_cc_work(struct work_struct *work)
 		return;
 	case LOOP_IBUSREG:
 		if (sm_dc->config.need_to_sw_ocp && sm_dc->wq.c_down == 1) {
-			pr_info("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
+			pr_debug("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
 			ret = sm_dc->ops->check_sw_ocp(sm_dc->i2c);
 			if (ret < 0)
 				return;
@@ -1482,7 +1482,7 @@ static void x2bat_pre_cc_work(struct work_struct *work)
 		return;
 	case LOOP_IBUSREG_M:
 		if (adc_ibus_s > sm_dc->wq.ci_gl_s - PPS_C_STEP) {
-			pr_info("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
+			pr_debug("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
 			sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 			if (sm_dc->i2c_sub)
 				sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -1494,7 +1494,7 @@ static void x2bat_pre_cc_work(struct work_struct *work)
 
 	if (sm_dc->ta.v >=
 		MIN(((sm_dc->ta.p_max * 100) / sm_dc->ta.c) / 100, sm_dc->config.dc_vbus_ovp_th - 350)) {
-		pr_info("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] pre_cc -> cc\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -1520,7 +1520,7 @@ static void x2bat_cc_work(struct work_struct *work)
 	int ret, adc_ibus, adc_ibus_s, adc_vbus, adc_vbat;
 	u8 loop_status = LOOP_INACTIVE;
 
-	pr_info("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
+	pr_debug("%s %s: (CI_GL=%dmA)\n", sm_dc->name, __func__, sm_dc->wq.ci_gl);
 	ret = x2bat_check_error_state(sm_dc, SM_DC_PRE_CC);
 	if (ret < 0)
 		return;
@@ -1546,7 +1546,7 @@ static void x2bat_cc_work(struct work_struct *work)
 		sm_dc->wq.cv_cnt = 0;
 		sm_dc->wq.topoff_m = 0;
 		sm_dc->wq.topoff_s = 0;
-		pr_info("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] pre-cc -> cv\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_CONTINUOUS);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_CONTINUOUS);
@@ -1554,7 +1554,7 @@ static void x2bat_cc_work(struct work_struct *work)
 		return;
 	case LOOP_IBUSREG:
 		if (sm_dc->config.need_to_sw_ocp && sm_dc->wq.v_down == 1) {
-			pr_info("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
+			pr_debug("%s %s: call check_sw_ocp\n", sm_dc->name, __func__);
 			ret = sm_dc->ops->check_sw_ocp(sm_dc->i2c);
 			if (ret < 0)
 				return;
@@ -1610,7 +1610,7 @@ static void x2bat_cv_work(struct work_struct *work)
 	int ret, adc_ibus, adc_vbus, adc_ibus_s, adc_vbat_m, adc_vbat_s;
 	u8 loop_status = LOOP_INACTIVE;
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = x2bat_check_error_state(sm_dc, SM_DC_CV);
 	if (ret < 0)
@@ -1635,7 +1635,7 @@ static void x2bat_cv_work(struct work_struct *work)
 	if (((sm_dc->wq.ci_gl_m - 100) / 100) * 100 <= SM_DC_CI_OFFSET_X2BAT) {
 		sm_dc->wq.topoff_m = 1;
 		sm_dc->ops->set_charging_enable(sm_dc->i2c, 0);
-		pr_info("%s %s: main dc done!!\n", sm_dc->name, __func__);
+		pr_debug("%s %s: main dc done!!\n", sm_dc->name, __func__);
 	}
 
 	/* sub DC off */
@@ -1646,7 +1646,7 @@ static void x2bat_cv_work(struct work_struct *work)
 			if (sm_dc->i2c_sub) {
 				if (sm_dc->ops->get_charging_enable(sm_dc->i2c_sub)) {
 					sm_dc->ops->set_charging_enable(sm_dc->i2c_sub, 0);
-					pr_info("%s %s: sub dc done!!\n", sm_dc->name, __func__);
+					pr_debug("%s %s: sub dc done!!\n", sm_dc->name, __func__);
 				}
 			}
 		}
@@ -1654,7 +1654,7 @@ static void x2bat_cv_work(struct work_struct *work)
 
 	/* Support to "POWER_SUPPLY_EXT_PROP_DIRECT_DONE" used TOPOFF flag */
 	if (sm_dc->wq.topoff_m && sm_dc->wq.topoff_s) {
-		pr_info("%s : dc done!!\n", __func__);
+		pr_debug("%s : dc done!!\n", __func__);
 		schedule_delayed_work(&sm_dc->done_event_work, msecs_to_jiffies(50));
 	}
 
@@ -1688,7 +1688,7 @@ static void x2bat_cv_work(struct work_struct *work)
 	/* occurred abnormal CV status */
 	if (loop_status == LOOP_IBUSREG ||
 		adc_vbat_m < sm_dc->wq.ci_gl_m - 100 || adc_vbat_s < sm_dc->wq.ci_gl_s - 100) {
-		pr_info("%s %s: adnormal cv, [request] cv -> pre_cc\n", sm_dc->name, __func__);
+		pr_debug("%s %s: adnormal cv, [request] cv -> pre_cc\n", sm_dc->name, __func__);
 		sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_ONESHOT);
 		if (sm_dc->i2c_sub)
 			sm_dc->ops->set_adc_mode(sm_dc->i2c_sub, SM_DC_ADC_MODE_ONESHOT);
@@ -1710,7 +1710,7 @@ static void x2bat_update_bat_work(struct work_struct *work)
 	int index, ret, cnt;
 	bool need_to_preset = 1;
 
-	pr_info("%s %s\n", sm_dc->name, __func__);
+	pr_debug("%s %s\n", sm_dc->name, __func__);
 
 	ret = check_error_state(sm_dc, SM_DC_UPDAT_BAT);
 	if (ret < 0)
@@ -1721,7 +1721,7 @@ static void x2bat_update_bat_work(struct work_struct *work)
 		if (sm_dc->req_update_vbat && sm_dc->req_update_ibus)
 			break;
 
-		pr_info("%s %s: wait 1sec for step changed\n", sm_dc->name, __func__);
+		pr_debug("%s %s: wait 1sec for step changed\n", sm_dc->name, __func__);
 		msleep(DELAY_PPS_UPDATE);
 	}
 
@@ -1737,13 +1737,13 @@ static void x2bat_update_bat_work(struct work_struct *work)
 		return;
 
 	if (index & (0x1 << 2))
-		pr_info("%s %s: vbat changed (%dmV)\n", sm_dc->name, __func__, sm_dc->target_vbat);
+		pr_debug("%s %s: vbat changed (%dmV)\n", sm_dc->name, __func__, sm_dc->target_vbat);
 
 	if (index & (0x1 << 1))
-		pr_info("%s %s: ibus changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibus);
+		pr_debug("%s %s: ibus changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibus);
 
 	if (index & 0x1)
-		pr_info("%s %s: ibat changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibat);
+		pr_debug("%s %s: ibat changed (%dmA)\n", sm_dc->name, __func__, sm_dc->target_ibat);
 
 	/* check step change event */
 	if ((index & (0x1 << 2)) && (index & (0x1 << 1))) {
@@ -1754,7 +1754,7 @@ static void x2bat_update_bat_work(struct work_struct *work)
 	sm_dc->ops->set_adc_mode(sm_dc->i2c, SM_DC_ADC_MODE_ONESHOT);
 
 	if (need_to_preset) {
-		pr_info("%s %s: [request] update_bat -> preset\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] update_bat -> preset\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_PRESET, DELAY_NONE);
 	} else {
 		x2bat_setup_direct_charging_work_config(sm_dc);
@@ -1764,7 +1764,7 @@ static void x2bat_update_bat_work(struct work_struct *work)
 		if (ret < 0)
 			return;
 
-		pr_info("%s %s: [request] update_bat -> pre_cc\n", sm_dc->name, __func__);
+		pr_debug("%s %s: [request] update_bat -> pre_cc\n", sm_dc->name, __func__);
 		request_state_work(sm_dc, SM_DC_PRE_CC, DELAY_ADC_UPDATE);
 	}
 }
@@ -1774,7 +1774,7 @@ static void x2bat_error_work(struct work_struct *work)
 	struct sm_dc_info *sm_dc = container_of(work, struct sm_dc_info, error_work.work);
 	int ret;
 
-	pr_info("%s %s: err=0x%x\n", sm_dc->name, __func__, sm_dc->err);
+	pr_debug("%s %s: err=0x%x\n", sm_dc->name, __func__, sm_dc->err);
 
 	ret = update_work_state(sm_dc, SM_DC_ERR);
 	if (ret < 0)
@@ -1819,7 +1819,7 @@ struct sm_dc_info *sm_dc_create_pd_instance(const char *name, struct i2c_client 
 	INIT_DELAYED_WORK(&sm_dc->error_work,       pd_error_work);
 	/* for SEC_BATTERY done event process */
 	INIT_DELAYED_WORK(&sm_dc->done_event_work,  sec_done_event_work);
-	pr_info("%s %s: done.\n", name, __func__);
+	pr_debug("%s %s: done.\n", name, __func__);
 
 	return sm_dc;
 
@@ -1861,7 +1861,7 @@ struct sm_dc_info *sm_dc_create_x2bat_instance(const char *name, struct i2c_clie
 	INIT_DELAYED_WORK(&sm_dc->update_bat_work,  x2bat_update_bat_work);
 	INIT_DELAYED_WORK(&sm_dc->error_work,       x2bat_error_work);
 	INIT_DELAYED_WORK(&sm_dc->done_event_work,  sec_done_event_work);
-	pr_info("%s %s: done.\n", name, __func__);
+	pr_debug("%s %s: done.\n", name, __func__);
 
 	return sm_dc;
 
@@ -1913,7 +1913,7 @@ int sm_dc_report_interrupt_event(struct sm_dc_info *sm_dc, u32 interrupt)
 	if ((sm_dc->state == SM_DC_CC) && (interrupt == SM_DC_INT_VBATREG)) {
 		if (delayed_work_pending(&sm_dc->cc_work)) {
 			cancel_delayed_work(&sm_dc->cc_work);
-			pr_info("%s %s: cancel CC_work, direct request work\n", sm_dc->name, __func__);
+			pr_debug("%s %s: cancel CC_work, direct request work\n", sm_dc->name, __func__);
 			request_state_work(sm_dc, SM_DC_CC, DELAY_NONE);
 		}
 	}
@@ -1950,7 +1950,7 @@ int sm_dc_start_charging(struct sm_dc_info *sm_dc)
 	mutex_unlock(&sm_dc->st_lock);
 	request_state_work(sm_dc, SM_DC_CHECK_VBAT, DELAY_PPS_UPDATE);
 
-	pr_info("%s %s: done\n", sm_dc->name, __func__);
+	pr_debug("%s %s: done\n", sm_dc->name, __func__);
 
 	return 0;
 }
@@ -2026,7 +2026,7 @@ int sm_dc_start_manual_charging(struct sm_dc_info *sm_dc)
 	sm_dc->ta.c = pps_c(MIN(sm_dc->ta.c_max, sm_dc->target_ibus));
 	sm_dc->ta.v = pps_v((2 * adc_vbat) + (PPS_V_STEP * 4)); /* VBAT_ADC + 80mV */
 
-	pr_info("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmV, c_max=%dmA, target_ibus=%dmA, target_vbat=%dmV\n",
+	pr_debug("%s %s: adc_vbat=%dmV, ta_min_v=%dmV, v_max=%dmV, c_max=%dmA, target_ibus=%dmA, target_vbat=%dmV\n",
 			sm_dc->name, __func__, adc_vbat, sm_dc->config.ta_min_voltage, sm_dc->ta.v_max,
 			sm_dc->ta.c_max, sm_dc->target_ibus, sm_dc->target_vbat);
 
@@ -2040,10 +2040,10 @@ int sm_dc_start_manual_charging(struct sm_dc_info *sm_dc)
 		return ret;
 	}
 	sm_dc->ops->set_charging_enable(sm_dc->i2c, 1);
-	pr_info("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
+	pr_debug("%s %s: enable Direct-charging\n", sm_dc->name, __func__);
 
 	request_state_work(sm_dc, SM_DC_CV_MAN, DELAY_PPS_UPDATE);
-	pr_info("%s %s: done\n", sm_dc->name, __func__);
+	pr_debug("%s %s: done\n", sm_dc->name, __func__);
 
 	return 0;
 }
@@ -2060,11 +2060,11 @@ int sm_dc_set_ta_volt_by_soc(struct sm_dc_info *sm_dc, int delta_soc)
 	} else if (delta_soc > 0) { // decrease soc (soc_now - ref_soc)
 		sm_dc->ta.v -= PPS_V_STEP;
 	} else {
-		pr_info("%s: abnormal delta_soc=%d\n", __func__, delta_soc);
+		pr_debug("%s: abnormal delta_soc=%d\n", __func__, delta_soc);
 		return -1;
 	}
 
-	pr_info("%s: delta_soc=%d, prev_ta_vol=%d, ta_vol=%d, ta_cur=%d\n",
+	pr_debug("%s: delta_soc=%d, prev_ta_vol=%d, ta_vol=%d, ta_cur=%d\n",
 		__func__, delta_soc, prev_ta_vol, sm_dc->ta.v, sm_dc->ta.c);
 
 	ret = send_power_source_msg(sm_dc);
@@ -2082,7 +2082,7 @@ int sm_dc_set_target_vbat(struct sm_dc_info *sm_dc, u32 target_vbat)
 	int ret = 0;
 	int adc_vbat;
 
-	pr_info("%s %s: [%dmV] to [%dmV]\n", sm_dc->name, __func__, sm_dc->target_vbat, target_vbat);
+	pr_debug("%s %s: [%dmV] to [%dmV]\n", sm_dc->name, __func__, sm_dc->target_vbat, target_vbat);
 
 	sm_dc->target_vbat = target_vbat;
 	if (sm_dc->state > SM_DC_CHECK_VBAT) {
@@ -2091,7 +2091,7 @@ int sm_dc_set_target_vbat(struct sm_dc_info *sm_dc, u32 target_vbat)
 			mutex_lock(&sm_dc->st_lock);
 			sm_dc->req_update_vbat = 1;
 			mutex_unlock(&sm_dc->st_lock);
-			pr_info("%s %s: request VBAT update on DC work\n", sm_dc->name, __func__);
+			pr_debug("%s %s: request VBAT update on DC work\n", sm_dc->name, __func__);
 		} else {
 			pr_err("%s %s: target_vbat(%dmV) less then adc_vbat(%dmV)\n", sm_dc->name, __func__,
 					sm_dc->target_vbat, adc_vbat);
@@ -2105,14 +2105,14 @@ EXPORT_SYMBOL(sm_dc_set_target_vbat);
 
 int sm_dc_set_target_ibus(struct sm_dc_info *sm_dc, u32 target_ibus)
 {
-	pr_info("%s %s: [%dmA] to [%dmA]\n", sm_dc->name, __func__, sm_dc->target_ibus, target_ibus);
+	pr_debug("%s %s: [%dmA] to [%dmA]\n", sm_dc->name, __func__, sm_dc->target_ibus, target_ibus);
 
 	sm_dc->target_ibus = target_ibus;
 	if (sm_dc->state > SM_DC_CHECK_VBAT) {
 		mutex_lock(&sm_dc->st_lock);
 		sm_dc->req_update_ibus = 1;
 		mutex_unlock(&sm_dc->st_lock);
-		pr_info("%s %s: request IBUS update on DC work\n", sm_dc->name, __func__);
+		pr_debug("%s %s: request IBUS update on DC work\n", sm_dc->name, __func__);
 	}
 
 	return 0;

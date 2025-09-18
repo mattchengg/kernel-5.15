@@ -19,7 +19,7 @@
 #include <linux/battery/sb_notify.h>
 #include <linux/battery/sb_wireless.h>
 
-#define sbw_log(str, ...) pr_info("[SB-WIRELESS]:%s: "str, __func__, ##__VA_ARGS__)
+#define sbw_log(str, ...) pr_debug("[SB-WIRELESS]:%s: "str, __func__, ##__VA_ARGS__)
 #define SBW_MODULE_NAME	"sb-wireless"
 
 struct sb_wireless {
