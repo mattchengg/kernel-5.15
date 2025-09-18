@@ -1355,7 +1355,7 @@ static int mcd_drm_panel_set_display_mode(struct exynos_panel *ctx,
 		return ret;
 	}
 
-	dev_info(ctx->dev, "%s drm-mode:%s, panel-mode:%s\n",
+	dev_dbg(ctx->dev, "%s drm-mode:%s, panel-mode:%s\n",
 			__func__, mode->name, pdm->name);
 
 	dev_dbg(ctx->dev, "%s -\n", __func__);

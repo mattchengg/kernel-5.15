@@ -153,6 +153,7 @@ s64 disp_round(s64 num, u32 digits)
 	return sign * (s64)tnum;
 }
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 static s64 scale_down_round(s64 num, u32 digits)
 {
 	int sign = (num < 0 ? -1 : 1);
@@ -188,6 +189,7 @@ static s64 scale_down_rem(s64 num, u32 digits)
 
 	return sign * rem;
 }
+#endif
 
 #if BIT_SHIFT > 26
 static int msb64(s64 num)

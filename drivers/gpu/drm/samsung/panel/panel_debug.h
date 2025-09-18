@@ -29,6 +29,7 @@ extern int panel_cmd_log;
 			pr_err(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":E:%s:%d: " fmt), __func__, __LINE__, ##__VA_ARGS__);			\
 	} while (0)
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #define panel_warn(fmt, ...)							\
 	do {									\
 		if (panel_log_level >= 4)					\
@@ -40,6 +41,10 @@ extern int panel_cmd_log;
 		if (panel_log_level >= 6)					\
 			pr_info(pr_fmt(PANEL_PR_PREFIX PANEL_PR_TAG ":I:%s: " fmt), __func__, ##__VA_ARGS__);			\
 	} while (0)
+#else
+#define panel_warn(fmt, ...) do {} while (0)
+#define panel_info(fmt, ...) do {} while (0)
+#endif
 
 #define panel_dbg(fmt, ...)							\
 	do {									\
@@ -54,6 +59,7 @@ extern int panel_cmd_log;
 			pr_err(pr_fmt(PANEL_PR_PREFIX "%s:E:%s: " fmt), (_tag_), __func__, ##__VA_ARGS__);			\
 	} while (0)
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #define panel_ext_warn(_tag_, fmt, ...)							\
 	do {									\
 		if (panel_log_level >= 4)					\
@@ -65,6 +71,10 @@ extern int panel_cmd_log;
 		if (panel_log_level >= 6)					\
 			pr_info(pr_fmt(PANEL_PR_PREFIX "%s:I:%s: " fmt), (_tag_), __func__, ##__VA_ARGS__);			\
 	} while (0)
+#else
+#define panel_ext_warn(_tag_, fmt, ...) do {} while (0)
+#define panel_ext_info(_tag_, fmt, ...) do {} while (0)
+#endif
 
 #define panel_ext_dbg(_tag_, fmt, ...)							\
 	do {									\
@@ -81,6 +91,7 @@ extern int panel_cmd_log;
 					__func__, ##__VA_ARGS__);			\
 	} while (0)
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #define panel_dev_warn(panel_dev, fmt, ...)							\
 	do {									\
 		if (panel_log_level >= 4)					\
@@ -96,6 +107,10 @@ extern int panel_cmd_log;
 					(panel_dev) ? (panel_dev)->id : 0, \
 					__func__, ##__VA_ARGS__);			\
 	} while (0)
+#else
+#define panel_dev_warn(panel_dev, fmt, ...) do {} while (0)
+#define panel_dev_info(panel_dev, fmt, ...) do {} while (0)
+#endif
 
 #define panel_dev_dbg(panel_dev, fmt, ...)							\
 	do {									\

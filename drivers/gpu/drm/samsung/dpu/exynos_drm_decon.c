@@ -2259,12 +2259,14 @@ static irqreturn_t decon_te_irq_handler(int irq, void *dev_id)
 	if (dpu_te_duration_check) {
 		static ktime_t timestamp_s;
 		ktime_t timestamp_d = ktime_get();
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 		s64 diff_usec = ktime_to_us(ktime_sub(timestamp_d, timestamp_s));
 
 		if (timestamp_s)
 			decon_info(decon, "vsync elapsed(%3ld.%03ldmsec)\n",
 					(diff_usec / USEC_PER_MSEC),
 					(diff_usec % USEC_PER_MSEC));
+#endif
 		timestamp_s = timestamp_d;
 	}
 

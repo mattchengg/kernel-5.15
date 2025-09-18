@@ -188,6 +188,7 @@ extern struct memlog_obj *g_errlog_obj;
 				fmt, ##__VA_ARGS__);				\
 	} while (0)
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #define dpu_pr_warn(name, id, log_lv, fmt, ...)					\
 	do {									\
 		if ((log_lv) >= 5)						\
@@ -207,6 +208,10 @@ extern struct memlog_obj *g_errlog_obj;
 		dpu_pr_memlog((g_log_obj), (name), (id), MEMLOG_LEVEL_INFO,	\
 				fmt, ##__VA_ARGS__);				\
 	} while (0)
+#else
+#define dpu_pr_warn(name, id, log_lv, fmt, ...) do {} while (0)
+#define dpu_pr_info(name, id, log_lv, fmt, ...) do {} while (0)
+#endif
 
 #define dpu_pr_debug(name, id, log_lv, fmt, ...)				\
 	do {									\

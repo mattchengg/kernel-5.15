@@ -2277,8 +2277,10 @@ static ssize_t alpm_store(struct device *dev,
 {
 	int value, rc;
 	struct panel_device *panel = dev_get_drvdata(dev);
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 	struct panel_info *panel_data = &panel->panel_data;
-
+#endif
+	
 	panel_mutex_lock(&panel->io_lock);
 	rc = kstrtoint(buf, 0, &value);
 	if (rc < 0) {
@@ -2295,7 +2297,9 @@ static ssize_t alpm_store(struct device *dev,
 #endif
 
 	panel_mutex_unlock(&panel->io_lock);
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 	panel_info("value %d, alpm_mode %d\n", value, panel_data->props.alpm_mode);
+#endif
 	return size;
 }
 
