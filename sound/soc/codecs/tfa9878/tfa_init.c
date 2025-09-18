@@ -26,13 +26,13 @@ static bool ipc_loaded;
 
 void tfa_set_ipc_loaded(int status)
 {
-	pr_info("set ipc_loaded %d for tfadsp\n", status);
+	pr_debug("set ipc_loaded %d for tfadsp\n", status);
 	ipc_loaded = (status) ? true : false;
 }
 
 int tfa_get_ipc_loaded(void)
 {
-	pr_info("get ipc_loaded %d for tfadsp\n", ipc_loaded);
+	pr_debug("get ipc_loaded %d for tfadsp\n", ipc_loaded);
 	return ipc_loaded ? 1 : 0;
 }
 
@@ -365,7 +365,7 @@ static enum tfa98xx_error tfa9878_specific(struct tfa_device *tfa)
 		break;
 
 	default:
-		pr_info("\nWarning: Optimal settings not found for device with revid = 0x%x\n",
+		pr_debug("\nWarning: Optimal settings not found for device with revid = 0x%x\n",
 			tfa->rev);
 		break;
 	}

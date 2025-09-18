@@ -96,12 +96,12 @@ static ssize_t update_rdc_status(int idx, char *buf)
 		if (ret == TFA98XX_ERROR_NOT_OPEN)
 			value = 0xffff; /* unused device */
 		if (ret) {
-			pr_info("%s: tfa_cal failed to read data from amplifier\n",
+			pr_debug("%s: tfa_cal failed to read data from amplifier\n",
 				__func__);
 			value = 0;
 		}
 		if (value == 0xffff)
-			pr_info("%s: tfa_cal read wrong data from amplifier\n",
+			pr_debug("%s: tfa_cal read wrong data from amplifier\n",
 				__func__);
 		cal_data[idx].rdc = value;
 	}
@@ -144,12 +144,12 @@ static ssize_t update_temp_status(int idx, char *buf)
 		if (ret == TFA98XX_ERROR_NOT_OPEN)
 			value = 0xffff; /* unused device */
 		if (ret) {
-			pr_info("%s: tfa_cal failed to read temp from amplifier\n",
+			pr_debug("%s: tfa_cal failed to read temp from amplifier\n",
 				__func__);
 			value = 0;
 		}
 		if (value == 0xffff)
-			pr_info("%s: tfa_cal read wrong temp from amplifier\n",
+			pr_debug("%s: tfa_cal read wrong temp from amplifier\n",
 				__func__);
 		cal_data[idx].temp = value;
 	}
@@ -179,7 +179,7 @@ static ssize_t rdc_show(struct device *dev,
 
 	ret = update_rdc_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_cal - dev %d - calibration data (rdc %d)\n",
+		pr_debug("%s: tfa_cal - dev %d - calibration data (rdc %d)\n",
 			__func__, idx, cal_data[idx].rdc);
 	else
 		pr_err("%s: tfa_cal dev %d - error %d\n",
@@ -191,7 +191,7 @@ static ssize_t rdc_show(struct device *dev,
 static ssize_t rdc_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write calibration data\n",
+	pr_debug("%s: dev %d - not allowed to write calibration data\n",
 		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
@@ -205,7 +205,7 @@ static ssize_t temp_show(struct device *dev,
 
 	ret = update_temp_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_cal - dev %d - calibration data (temp %d)\n",
+		pr_debug("%s: tfa_cal - dev %d - calibration data (temp %d)\n",
 			__func__, idx, cal_data[idx].temp);
 	else
 		pr_err("%s: tfa_cal dev %d - error %d\n",
@@ -217,7 +217,7 @@ static ssize_t temp_show(struct device *dev,
 static ssize_t temp_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write temperature in calibration\n",
+	pr_debug("%s: dev %d - not allowed to write temperature in calibration\n",
 		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
@@ -232,7 +232,7 @@ static ssize_t rdc_r_show(struct device *dev,
 
 	ret = update_rdc_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_cal - dev %d - calibration data (rdc %d)\n",
+		pr_debug("%s: tfa_cal - dev %d - calibration data (rdc %d)\n",
 			__func__, idx, cal_data[idx].rdc);
 	else
 		pr_err("%s: tfa_cal dev %d - error %d\n",
@@ -244,7 +244,7 @@ static ssize_t rdc_r_show(struct device *dev,
 static ssize_t rdc_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write calibration data\n",
+	pr_debug("%s: dev %d - not allowed to write calibration data\n",
 		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
@@ -258,7 +258,7 @@ static ssize_t temp_r_show(struct device *dev,
 
 	ret = update_temp_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_cal - dev %d - calibration data (temp %d)\n",
+		pr_debug("%s: tfa_cal - dev %d - calibration data (temp %d)\n",
 			__func__, idx, cal_data[idx].temp);
 	else
 		pr_err("%s: tfa_cal dev %d - error %d\n",
@@ -270,7 +270,7 @@ static ssize_t temp_r_show(struct device *dev,
 static ssize_t temp_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write temperature in calibration\n",
+	pr_debug("%s: dev %d - not allowed to write temperature in calibration\n",
 		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
@@ -304,20 +304,20 @@ static ssize_t status_store(struct device *dev,
 
 	/* Compare string, excluding the trailing \0 and the potentials eol */
 	if (!sysfs_streq(buf, "1") && !sysfs_streq(buf, "0")) {
-		pr_info("%s: tfa_cal invalid value to start calibration\n",
+		pr_debug("%s: tfa_cal invalid value to start calibration\n",
 			__func__);
 		return -EINVAL;
 	}
 
 	ret = kstrtou32(buf, 10, &status);
 	if (!status) {
-		pr_info("%s: do nothing\n", __func__);
+		pr_debug("%s: do nothing\n", __func__);
 		return -EINVAL;
 	}
 	if (cur_status)
-		pr_info("%s: tfa_cal prior calibration still runs\n", __func__);
+		pr_debug("%s: tfa_cal prior calibration still runs\n", __func__);
 
-	pr_info("%s: tfa_cal begin\n", __func__);
+	pr_debug("%s: tfa_cal begin\n", __func__);
 
 	cur_status = status; /* run - changed to active */
 
@@ -328,7 +328,7 @@ static ssize_t status_store(struct device *dev,
 	if (ret == TFA98XX_ERROR_NOT_OPEN)
 		return -EINVAL; /* unused device */
 	if (ret) {
-		pr_info("%s: tfa_cal failed to calibrate speaker\n", __func__);
+		pr_debug("%s: tfa_cal failed to calibrate speaker\n", __func__);
 		return -EINVAL;
 	}
 
@@ -346,13 +346,13 @@ static ssize_t status_store(struct device *dev,
 		/* read data to store */
 		ret = tfa_get_cal_data(idx, &value);
 		if (ret) {
-			pr_info("%s: tfa_cal failed to read data after calibration\n",
+			pr_debug("%s: tfa_cal failed to read data after calibration\n",
 				__func__);
 			continue;
 		}
 
 		if (value == 0xffff) {
-			pr_info("%s: tfa_cal invalid data\n", __func__);
+			pr_debug("%s: tfa_cal invalid data\n", __func__);
 			return -EINVAL;
 		}
 
@@ -361,23 +361,23 @@ static ssize_t status_store(struct device *dev,
 		/* read temp to store */
 		ret = tfa_get_cal_temp(idx, &value);
 		if (ret) {
-			pr_info("%s: tfa_cal failed to read temp after calibration\n",
+			pr_debug("%s: tfa_cal failed to read temp after calibration\n",
 				__func__);
 			continue;
 		}
 
 		if (value == 0xffff) {
-			pr_info("%s: tfa_cal invalid data\n", __func__);
+			pr_debug("%s: tfa_cal invalid data\n", __func__);
 			return -EINVAL;
 		}
 
 		cal_data[idx].temp = value;
 
-		pr_info("%s: tfa_cal - dev %d - calibration data (%d, %d)\n",
+		pr_debug("%s: tfa_cal - dev %d - calibration data (%d, %d)\n",
 			__func__, idx, cal_data[idx].rdc, cal_data[idx].temp);
 	}
 
-	pr_info("%s: tfa_cal end\n", __func__);
+	pr_debug("%s: tfa_cal end\n", __func__);
 
 	return size;
 }
@@ -398,7 +398,7 @@ int tfa98xx_cal_init(struct class *tfa_class)
 		}
 	}
 
-	pr_info("%s: initialized (%d)\n", __func__,
+	pr_debug("%s: initialized (%d)\n", __func__,
 		(tfa_class != NULL) ? 1 : 0);
 
 	return ret;
@@ -407,5 +407,5 @@ int tfa98xx_cal_init(struct class *tfa_class)
 void tfa98xx_cal_exit(struct class *tfa_class)
 {
 	device_destroy(tfa_class, DEV_ID_TFA_CAL);
-	pr_info("exited\n");
+	pr_debug("exited\n");
 }

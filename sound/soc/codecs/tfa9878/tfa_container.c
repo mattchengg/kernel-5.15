@@ -463,7 +463,7 @@ static enum tfa98xx_error tfa_cont_write_vstep_max2_one
 	 * In other words: the reset msg is applied during SBSL==0
 	 * else it remains unchanged.
 	 */
-	pr_info("%s: is_cold %d\n", __func__, tfa->is_cold);
+	pr_debug("%s: is_cold %d\n", __func__, tfa->is_cold);
 
 	if (tfa_needs_reset(tfa) == 1) {
 		if (new_msg->message_type == 0) {
@@ -717,7 +717,7 @@ enum tfa98xx_error tfa_cont_fw_api_check(struct tfa_device *tfa,
 {
 	int i;
 
-	pr_info("%s: Expected FW API ver: %d.%d.%d.%d, Msg File ver: %d.%d.%d.%d\n",
+	pr_debug("%s: Expected FW API ver: %d.%d.%d.%d, Msg File ver: %d.%d.%d.%d\n",
 		__func__,
 		tfa->fw_itf_ver[0], tfa->fw_itf_ver[1],
 		tfa->fw_itf_ver[2], tfa->fw_itf_ver[3],
@@ -830,7 +830,7 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 			&& data_buf[2] == FW_PAR_ID_SET_CHIP_TEMP_SELECTOR
 			&& tfa->temp != 0xffff) {
 			/* set index by skipping command and two parameters */
-			pr_info("%s: check temp in msg 0x%02x%02x%02x, @ 0x%02x\n",
+			pr_debug("%s: check temp in msg 0x%02x%02x%02x, @ 0x%02x\n",
 				__func__, data_buf[TEMP_OFFSET],
 				data_buf[TEMP_OFFSET + 1],
 				data_buf[TEMP_OFFSET + 2],
@@ -846,7 +846,7 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 					= (char)(tfa->temp & 0x0000ff);
 			}
 
-			pr_info("%s: set temp from driver 0x%02x%02x%02x\n",
+			pr_debug("%s: set temp from driver 0x%02x%02x%02x\n",
 				__func__, data_buf[TEMP_OFFSET],
 				data_buf[TEMP_OFFSET + 1],
 				data_buf[TEMP_OFFSET + 2]);
@@ -865,7 +865,7 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 					= SB_PARAM_SET_MBDRC_WITHOUT_RESET;
 
 			if (org_cmd != data_buf[2])
-				pr_info("%s: cmd=0x%02x to 0x%02x (configured)\n",
+				pr_debug("%s: cmd=0x%02x to 0x%02x (configured)\n",
 					__func__, org_cmd, data_buf[2]);
 		}
 
@@ -873,7 +873,7 @@ enum tfa98xx_error tfa_cont_write_file(struct tfa_device *tfa,
 			(const char *)((struct tfa_msg_file *)hdr)->data);
 
 		if (org_cmd != data_buf[2]) {
-			pr_info("%s: cmd=0x%02x to 0x%02x (restored)\n",
+			pr_debug("%s: cmd=0x%02x to 0x%02x (restored)\n",
 				__func__, data_buf[2], org_cmd);
 			data_buf[2] = org_cmd;
 		}
@@ -2178,7 +2178,7 @@ enum tfa98xx_error tfa_cont_write_profile(struct tfa_device *tfa,
 	}
 
 	if (tfa_cont_is_standby_profile(tfa, prof_idx)) {
-		pr_info("%s: Keep power down without writing files, in standby profile!\n",
+		pr_debug("%s: Keep power down without writing files, in standby profile!\n",
 			__func__);
 
 		err = tfa98xx_powerdown(tfa, 1);
@@ -2530,7 +2530,7 @@ int tfa_cont_get_cal_profile(struct tfa_device *tfa)
 		}
 	}
 
-	pr_info("%s: cal_prof = %d", __func__, cal_idx);
+	pr_debug("%s: cal_prof = %d", __func__, cal_idx);
 
 	return cal_idx;
 }
@@ -2947,7 +2947,7 @@ int tfa_tib_dsp_msgmulti(struct tfa_device *tfa,
 	/* Flush buffer */
 	if (length == -2) {
 		if (blob[idx] == NULL) {
-			pr_info("%s: already flushed - NULL (index %d)!\n",
+			pr_debug("%s: already flushed - NULL (index %d)!\n",
 				__func__, idx);
 			return 0;
 		}

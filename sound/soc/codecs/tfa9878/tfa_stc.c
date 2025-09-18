@@ -103,7 +103,7 @@ static ssize_t spkt_show(struct device *dev,
 	char spkt_result[FILESIZE_STC] = {0};
 
 	value = tfa98xx_update_spkt_data(idx);
-	pr_info("%s: tfa_stc - dev %d - speaker temperature (%d)\n",
+	pr_debug("%s: tfa_stc - dev %d - speaker temperature (%d)\n",
 		__func__, idx, value);
 
 	snprintf(spkt_result, FILESIZE_STC,
@@ -126,7 +126,7 @@ static ssize_t spkt_show(struct device *dev,
 static ssize_t spkt_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write speaker temperature\n",
+	pr_debug("%s: dev %d - not allowed to write speaker temperature\n",
 		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
@@ -140,7 +140,7 @@ static ssize_t sknt_show(struct device *dev,
 
 	ret = update_sknt_control(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_stc - dev %d - surface temperature (%d)\n",
+		pr_debug("%s: tfa_stc - dev %d - surface temperature (%d)\n",
 			__func__, idx, sknt_data[idx]);
 	else
 		pr_err("%s: tfa_stc dev %d - error %d\n",
@@ -158,13 +158,13 @@ static ssize_t sknt_store(struct device *dev,
 
 	ret = kstrtou32(buf, 10, &value);
 	if (!value) {
-		pr_info("%s: do nothing\n", __func__);
+		pr_debug("%s: do nothing\n", __func__);
 		return -EINVAL;
 	}
 
 	ret = tfa98xx_write_sknt_control(idx, value);
 	if (!ret) {
-		pr_info("%s: tfa_stc - dev %d - surface temperature (%d)\n",
+		pr_debug("%s: tfa_stc - dev %d - surface temperature (%d)\n",
 			__func__, idx, value);
 		sknt_data[idx] = value;
 	} else {
@@ -184,7 +184,7 @@ static ssize_t spkt_r_show(struct device *dev,
 	char spkt_result[FILESIZE_STC] = {0};
 
 	value = tfa98xx_update_spkt_data(idx);
-	pr_info("%s: tfa_stc - dev %d - speaker temperature (%d)\n",
+	pr_debug("%s: tfa_stc - dev %d - speaker temperature (%d)\n",
 		__func__, idx, value);
 
 	snprintf(spkt_result, FILESIZE_STC,
@@ -207,7 +207,7 @@ static ssize_t spkt_r_show(struct device *dev,
 static ssize_t spkt_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write speaker temperature\n",
+	pr_debug("%s: dev %d - not allowed to write speaker temperature\n",
 		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
@@ -221,7 +221,7 @@ static ssize_t sknt_r_show(struct device *dev,
 
 	ret = update_sknt_control(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_stc - dev %d - surface temperature (%d)\n",
+		pr_debug("%s: tfa_stc - dev %d - surface temperature (%d)\n",
 			__func__, idx, sknt_data[idx]);
 	else
 		pr_err("%s: tfa_stc dev %d - error %d\n",
@@ -239,13 +239,13 @@ static ssize_t sknt_r_store(struct device *dev,
 
 	ret = kstrtou32(buf, 10, &value);
 	if (!value) {
-		pr_info("%s: do nothing\n", __func__);
+		pr_debug("%s: do nothing\n", __func__);
 		return -EINVAL;
 	}
 
 	ret = tfa98xx_write_sknt_control(idx, value);
 	if (!ret) {
-		pr_info("%s: tfa_stc - dev %d - surface temperature (%d)\n",
+		pr_debug("%s: tfa_stc - dev %d - surface temperature (%d)\n",
 			__func__, idx, value);
 		sknt_data[idx] = value;
 	} else {
@@ -274,7 +274,7 @@ int tfa98xx_stc_init(struct class *tfa_class)
 		}
 	}
 
-	pr_info("%s: initialized (%d)\n", __func__,
+	pr_debug("%s: initialized (%d)\n", __func__,
 		(tfa_class != NULL) ? 1 : 0);
 
 	return ret;
@@ -283,5 +283,5 @@ int tfa98xx_stc_init(struct class *tfa_class)
 void tfa98xx_stc_exit(struct class *tfa_class)
 {
 	device_destroy(tfa_class, DEV_ID_TFA_STC);
-	pr_info("exited\n");
+	pr_debug("exited\n");
 }

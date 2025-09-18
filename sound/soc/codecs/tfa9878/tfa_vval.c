@@ -95,12 +95,12 @@ static ssize_t update_vval_status(int idx, char *buf)
 		if (ret == TFA98XX_ERROR_NOT_OPEN)
 			value = VVAL_UNTESTED; /* unused device */
 		if (ret) {
-			pr_info("%s: tfa_vval failed to read data from amplifier\n",
+			pr_debug("%s: tfa_vval failed to read data from amplifier\n",
 				__func__);
 			value = VVAL_TEST_FAIL;
 		}
 		if (value == 0xffff) {
-			pr_info("%s: tfa_vval read wrong data from amplifier\n",
+			pr_debug("%s: tfa_vval read wrong data from amplifier\n",
 				__func__);
 			value = VVAL_UNTESTED;
 		}
@@ -132,7 +132,7 @@ static ssize_t status_show(struct device *dev,
 
 	ret = update_vval_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_vval - dev %d - V validation data (%d)\n",
+		pr_debug("%s: tfa_vval - dev %d - V validation data (%d)\n",
 			__func__, idx, vval_data[idx]);
 	else
 		pr_err("%s: tfa_vval dev %d - error %d\n",
@@ -144,7 +144,7 @@ static ssize_t status_show(struct device *dev,
 static ssize_t status_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write V validation result\n",
+	pr_debug("%s: dev %d - not allowed to write V validation result\n",
 		__func__, tfa_get_dev_idx_from_inchannel(0));
 
 	return size;
@@ -159,7 +159,7 @@ static ssize_t status_r_show(struct device *dev,
 
 	ret = update_vval_status(idx, buf);
 	if (ret > 0)
-		pr_info("%s: tfa_vval - dev %d - V validation data (%d)\n",
+		pr_debug("%s: tfa_vval - dev %d - V validation data (%d)\n",
 			__func__, idx, vval_data[idx]);
 	else
 		pr_err("%s: tfa_vval dev %d - error %d\n",
@@ -171,7 +171,7 @@ static ssize_t status_r_show(struct device *dev,
 static ssize_t status_r_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
-	pr_info("%s: dev %d - not allowed to write V validation result\n",
+	pr_debug("%s: dev %d - not allowed to write V validation result\n",
 		__func__, tfa_get_dev_idx_from_inchannel(1));
 
 	return size;
@@ -205,21 +205,21 @@ static ssize_t validation_store(struct device *dev,
 
 	/* Compare string, excluding the trailing \0 and the potentials eol */
 	if (!sysfs_streq(buf, "1") && !sysfs_streq(buf, "0")) {
-		pr_info("%s: tfa_vval invalid value to start V validation\n",
+		pr_debug("%s: tfa_vval invalid value to start V validation\n",
 			__func__);
 		return -EINVAL;
 	}
 
 	ret = kstrtou32(buf, 10, &status);
 	if (!status) {
-		pr_info("%s: do nothing\n", __func__);
+		pr_debug("%s: do nothing\n", __func__);
 		return -EINVAL;
 	}
 	if (cur_status)
-		pr_info("%s: tfa_vval prior V validation still runs\n",
+		pr_debug("%s: tfa_vval prior V validation still runs\n",
 			__func__);
 
-	pr_info("%s: tfa_vval begin\n", __func__);
+	pr_debug("%s: tfa_vval begin\n", __func__);
 
 	cur_status = status; /* run - changed to active */
 
@@ -230,7 +230,7 @@ static ssize_t validation_store(struct device *dev,
 	if (ret == TFA98XX_ERROR_NOT_OPEN)
 		return -EINVAL; /* unused device */
 	if (ret) {
-		pr_info("%s: tfa_vval failed to run V validation\n", __func__);
+		pr_debug("%s: tfa_vval failed to run V validation\n", __func__);
 		return -EINVAL;
 	}
 
@@ -248,22 +248,22 @@ static ssize_t validation_store(struct device *dev,
 		/* read data to store */
 		ret = tfa_get_vval_data(idx, &value);
 		if (ret) {
-			pr_info("%s: tfa_vval failed to read data after V validation\n",
+			pr_debug("%s: tfa_vval failed to read data after V validation\n",
 				__func__);
 			value = VVAL_TEST_FAIL;
 		}
 		if (value == 0xffff) {
-			pr_info("%s: tfa_vval invalid data\n", __func__);
+			pr_debug("%s: tfa_vval invalid data\n", __func__);
 			value = VVAL_UNTESTED;
 		}
 
 		vval_data[idx] = value;
 
-		pr_info("%s: tfa_vval - dev %d - V validation result (%d)\n",
+		pr_debug("%s: tfa_vval - dev %d - V validation result (%d)\n",
 			__func__, idx, vval_data[idx]);
 	}
 
-	pr_info("%s: tfa_vval end\n", __func__);
+	pr_debug("%s: tfa_vval end\n", __func__);
 
 	return size;
 }
@@ -284,7 +284,7 @@ int tfa98xx_vval_init(struct class *tfa_class)
 		}
 	}
 
-	pr_info("%s: initialized (%d)\n", __func__,
+	pr_debug("%s: initialized (%d)\n", __func__,
 		(tfa_class != NULL) ? 1 : 0);
 
 	return ret;
@@ -293,6 +293,6 @@ int tfa98xx_vval_init(struct class *tfa_class)
 void tfa98xx_vval_exit(struct class *tfa_class)
 {
 	device_destroy(tfa_class, DEV_ID_TFA_VVAL);
-	pr_info("exited\n");
+	pr_debug("exited\n");
 }
 

@@ -19,8 +19,8 @@ static int __init tfa98xx_sysfs_init(void)
 	if (!g_tfa_class)
 		g_tfa_class = class_create(THIS_MODULE, TFA_CLASS_NAME);
 
-	pr_info("%s: g_tfa_class=%p\n", __func__, g_tfa_class);
-	pr_info("%s: initialized\n", __func__);
+	pr_debug("%s: g_tfa_class=%p\n", __func__, g_tfa_class);
+	pr_debug("%s: initialized\n", __func__);
 
 	if (!g_tfa_class)
 		return -EFAULT;
@@ -44,7 +44,7 @@ static void __exit tfa98xx_sysfs_exit(void)
 	tfa98xx_stc_exit(g_tfa_class);
 
 	class_destroy(g_tfa_class);
-	pr_info("exited\n");
+	pr_debug("exited\n");
 }
 module_exit(tfa98xx_sysfs_exit);
 

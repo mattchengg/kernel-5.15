@@ -40,7 +40,7 @@
 #endif
 
 #define MSG(fmt, va...) \
-	pr_info("%s:%d: "fmt, __func__, __LINE__, ##va)
+	pr_debug("%s:%d: "fmt, __func__, __LINE__, ##va)
 #define _ERRORMSG(fmt, va...) \
 	pr_err(PREFIX "ERROR %s:%d: "fmt, __func__, __LINE__, ##va)
 
