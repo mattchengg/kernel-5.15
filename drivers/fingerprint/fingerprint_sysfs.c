@@ -77,7 +77,7 @@ EXPORT_SYMBOL_GPL(destroy_fingerprint_class);
 
 static int __init fingerprint_class_init(void)
 {
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	fingerprint_class = class_create(THIS_MODULE, "fingerprint");
 
 	if (IS_ERR(fingerprint_class)) {

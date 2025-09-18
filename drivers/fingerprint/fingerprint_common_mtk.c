@@ -25,7 +25,7 @@ void spi_get_ctrldata(struct spi_device *spi)
 	((struct mtk_chip_config *)spi->controller_data)->tick_delay = tckdly;
 
 	of_node_put(data_np);
-	pr_info("%s done\n", __func__);
+	pr_debug("%s done\n", __func__);
 #endif
 }
 

@@ -80,7 +80,7 @@ static ssize_t resetcnt_store(struct device *dev,
 
 	if (sysfs_streq(buf, "c")) {
 		gf_dev->reset_count = 0;
-		pr_info("initialization is done\n");
+		pr_debug("initialization is done\n");
 	}
 	return size;
 }
@@ -164,7 +164,7 @@ static long gw9558_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_IOC_RESET:
-		pr_info("GF_IOC_RESET\n");
+		pr_debug("GF_IOC_RESET\n");
 		gw9558_hw_reset(gf_dev, 0);
 		break;
 
@@ -173,23 +173,23 @@ static long gw9558_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					sizeof(onoff))) {
 			pr_err("Failed to copy spi_speed value from user to kernel\n");
 		}
-		pr_info("GF_IOC_ENABLE_SPI_CLK : %d, fromUser : %d\n",
+		pr_debug("GF_IOC_ENABLE_SPI_CLK : %d, fromUser : %d\n",
 				gf_dev->clk_setting->spi_speed, onoff);
 		spi_clk_enable(gf_dev->clk_setting);
 		break;
 
 	case GF_IOC_DISABLE_SPI_CLK:
-		pr_info("GF_IOC_DISABLE_SPI_CLK\n");
+		pr_debug("GF_IOC_DISABLE_SPI_CLK\n");
 		spi_clk_disable(gf_dev->clk_setting);
 		break;
 
 	case GF_IOC_ENABLE_POWER:
-		pr_info("GF_IOC_ENABLE_POWER\n");
+		pr_debug("GF_IOC_ENABLE_POWER\n");
 		gw9558_hw_power_enable(gf_dev, 1);
 		break;
 
 	case GF_IOC_DISABLE_POWER:
-		pr_info("GF_IOC_DISABLE_POWER\n");
+		pr_debug("GF_IOC_DISABLE_POWER\n");
 		gw9558_hw_power_enable(gf_dev, 0);
 		break;
 
@@ -200,7 +200,7 @@ static long gw9558_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			retval = -EFAULT;
 			break;
 		}
-		pr_info("GF_IOC_POWER_CONTROL %d\n", onoff);
+		pr_debug("GF_IOC_POWER_CONTROL %d\n", onoff);
 		gw9558_hw_power_enable(gf_dev, onoff);
 		break;
 
@@ -244,7 +244,7 @@ static long gw9558_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		break;
 
 	case GF_MODEL_INFO:
-		pr_info("GF_MODEL_INFO : %s\n", gf_dev->model_info);
+		pr_debug("GF_MODEL_INFO : %s\n", gf_dev->model_info);
 		if (copy_to_user((void __user *)arg, gf_dev->model_info, 10)) {
 			pr_err("Failed to copy data to user\n");
 			retval = -EFAULT;
@@ -285,11 +285,11 @@ static int gw9558_open(struct inode *inode, struct file *filp)
 	struct gf_device *gf_dev = NULL;
 	int retval = -ENXIO;
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 	mutex_lock(&device_list_lock);
 	list_for_each_entry(gf_dev, &device_list, device_entry) {
 		if (gf_dev->devno == inode->i_rdev) {
-			pr_info("Found\n");
+			pr_debug("Found\n");
 			retval = 0;
 			break;
 		}
@@ -299,7 +299,7 @@ static int gw9558_open(struct inode *inode, struct file *filp)
 	if (retval == 0) {
 		filp->private_data = gf_dev;
 		nonseekable_open(inode, filp);
-		pr_info("Success to open device\n");
+		pr_debug("Success to open device\n");
 	} else {
 		pr_err("No device for minor %d\n", iminor(inode));
 	}
@@ -310,7 +310,7 @@ static int gw9558_release(struct inode *inode, struct file *filp)
 {
 	struct gf_device *gf_dev = NULL;
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 	gf_dev = filp->private_data;
 	return 0;
 }
@@ -338,7 +338,7 @@ static void gw9558_work_func_debug(struct work_struct *work)
 	if (gf_dev->reset_gpio)
 		rst_value = gpio_get_value(gf_dev->reset_gpio);
 
-	pr_info("ldo: %d, sleep: %d, tz: %d type: %s\n",
+	pr_debug("ldo: %d, sleep: %d, tz: %d type: %s\n",
 		gf_dev->ldo_onoff, rst_value, gf_dev->tz_mode,
 		gf_dev->sensortype > 0 ? gf_dev->chipid : sensor_status[gf_dev->sensortype + 2]);
 }
@@ -437,10 +437,10 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
     /* get pwr resource */
 	gf_dev->pwr_gpio = of_get_named_gpio(np, "goodix,gpio_pwr", 0);
 	if (!gpio_is_valid(gf_dev->pwr_gpio)) {
-		pr_info("not use PWR GPIO\n");
+		pr_debug("not use PWR GPIO\n");
 		gf_dev->pwr_gpio = 0;
 	} else {
-		pr_info("goodix_pwr:%d\n", gf_dev->pwr_gpio);
+		pr_debug("goodix_pwr:%d\n", gf_dev->pwr_gpio);
 		retval = gpio_request(gf_dev->pwr_gpio, "goodix_pwr");
 		if (retval < 0) {
 			pr_err("Failed to request PWR GPIO = %d\n", retval);
@@ -450,18 +450,18 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	}
 
 	if (of_property_read_string(np, "goodix,btp-regulator", &gf_dev->btp_vdd) < 0) {
-		pr_info("not use btp_regulator\n");
+		pr_debug("not use btp_regulator\n");
 		gf_dev->btp_vdd = NULL;
 	} else {
 		gf_dev->regulator_3p3 = regulator_get(NULL, gf_dev->btp_vdd);
 		if ((gf_dev->regulator_3p3) == NULL) {
-			pr_info("fail to get regulator_3p3\n");
+			pr_debug("fail to get regulator_3p3\n");
 			return -EINVAL;
 		} else if (IS_ERR(gf_dev->regulator_3p3)) {
-			pr_info("fail to get regulator_3p3: %ld", PTR_ERR(gf_dev->regulator_3p3));
+			pr_debug("fail to get regulator_3p3: %ld", PTR_ERR(gf_dev->regulator_3p3));
 			return PTR_ERR(gf_dev->regulator_3p3);
 		}
-		pr_info("btp_regulator ok\n");
+		pr_debug("btp_regulator ok\n");
 	}
 
     /* get reset resource */
@@ -470,7 +470,7 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 		pr_err("RESET GPIO is invalid.\n");
 		return gf_dev->reset_gpio;
 	}
-	pr_info("goodix_reset:%d\n", gf_dev->reset_gpio);
+	pr_debug("goodix_reset:%d\n", gf_dev->reset_gpio);
 	retval = gpio_request(gf_dev->reset_gpio, "goodix_reset");
 	if (retval < 0) {
 		pr_err("Failed to request RESET GPIO = %d\n", retval);
@@ -485,25 +485,25 @@ int gw9558_get_gpio_dts_info(struct device *dev, struct gf_device *gf_dev)
 	if (of_property_read_string_index(np, "goodix,chip_id", 0,
 			(const char **)&gf_dev->chipid))
 		gf_dev->chipid = "NULL";
-	pr_info("Chip ID:%s\n", gf_dev->chipid);
+	pr_debug("Chip ID:%s\n", gf_dev->chipid);
 
 	if (of_property_read_string_index(np, "goodix,position", 0,
 			(const char **)&gf_dev->sensor_position)) {
 		gf_dev->sensor_position = "14.31,0.00,9.10,9.10,14.80,14.80,12.00,12.00,5.00";
 	}
-	pr_info("position: %s\n", gf_dev->sensor_position);
+	pr_debug("position: %s\n", gf_dev->sensor_position);
 
 	if (of_property_read_string_index(np, "goodix,rb", 0,
 			(const char **)&gf_dev->rb)) {
 		gf_dev->rb = "525,-1,-1";
 	}
-	pr_info("rb: %s\n", gf_dev->rb);
+	pr_debug("rb: %s\n", gf_dev->rb);
 
 	if (of_property_read_string_index(np, "goodix,modelinfo", 0,
 			(const char **)&gf_dev->model_info)) {
 		gf_dev->model_info = "NONE";
 	}
-	pr_info("modelinfo: %s\n", gf_dev->model_info);
+	pr_debug("modelinfo: %s\n", gf_dev->model_info);
 
 	gf_dev->p = pinctrl_get_select_default(dev);
 	if (IS_ERR(gf_dev->p)) {
@@ -563,19 +563,19 @@ int gw9558_type_check(struct gf_device *gf_dev)
 #endif
 	gw9558_spi_read_bytes(gf_dev, 0x0000, 2, mcuid);
 	mcuid32 = mcuid[0] << 8 | mcuid[1];
-	pr_info("Sensor read : %x %x\n", mcuid[0], mcuid[1]);
-	pr_info("Sensor read : 0x%4x\n", mcuid32);
+	pr_debug("Sensor read : %x %x\n", mcuid[0], mcuid[1]);
+	pr_debug("Sensor read : 0x%4x\n", mcuid32);
 	if (mcuid32 == G3_MCU_ID) {
 		gf_dev->sensortype = SENSOR_OK;
-		pr_info("sensor type is G3 %s\n", gf_dev->chipid);
+		pr_debug("sensor type is G3 %s\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == GX_MCU_ID) {
 		gf_dev->sensortype = SENSOR_OK;
-		pr_info("sensor type is GX %s\n", gf_dev->chipid);
+		pr_debug("sensor type is GX %s\n", gf_dev->chipid);
 		retval = 0;
 	} else if (mcuid32 == G3S_MCU_ID) {
 		gf_dev->sensortype = SENSOR_OK;
-		pr_info("sensor type is G3S %s\n", gf_dev->chipid);
+		pr_debug("sensor type is G3S %s\n", gf_dev->chipid);
 		retval = 0;
 	} else {
 		gf_dev->sensortype = SENSOR_FAILED;
@@ -616,7 +616,7 @@ static int gw9558_probe_common(struct device *dev, struct gf_device *gf_dev)
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	int retry = 0;
 #endif
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 
 	spin_lock_init(&gf_dev->spi_lock);
 	INIT_LIST_HEAD(&gf_dev->device_entry);
@@ -665,7 +665,7 @@ static int gw9558_probe_common(struct device *dev, struct gf_device *gf_dev)
 		pr_err("Failed to alloc devno.\n");
 		goto gw9558_probe_devno;
 	} else {
-		pr_info("major=%d, minor=%d\n",
+		pr_debug("major=%d, minor=%d\n",
 				MAJOR(gf_dev->devno), MINOR(gf_dev->devno));
 	}
 
@@ -680,13 +680,13 @@ static int gw9558_probe_common(struct device *dev, struct gf_device *gf_dev)
 		mutex_lock(&device_list_lock);
 		list_add(&gf_dev->device_entry, &device_list);
 		mutex_unlock(&device_list_lock);
-		pr_info("device create success.\n");
+		pr_debug("device create success.\n");
 	}
 
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	do {
 		retval = gw9558_type_check(gf_dev);
-		pr_info("type (%u), retry (%d)\n", gf_dev->sensortype, retry);
+		pr_debug("type (%u), retry (%d)\n", gf_dev->sensortype, retry);
 	} while (!gf_dev->sensortype && ++retry < 3);
 
 	if (retval == -ENODEV)
@@ -730,7 +730,7 @@ static int gw9558_probe_common(struct device *dev, struct gf_device *gf_dev)
 		goto gw9558_probe_debug_timer;
 	enable_fp_debug_timer(gf_dev->logger);
 
-	pr_info("probe finished\n");
+	pr_debug("probe finished\n");
 	return 0;
 
 gw9558_probe_debug_timer:
@@ -758,7 +758,7 @@ static int gw9558_probe(struct platform_device *pdev)
 	int retval = -ENOMEM;
 	struct gf_device *gf_dev;
 
-	pr_info("platform_driver Entry\n");
+	pr_debug("platform_driver Entry\n");
 
 	gf_dev = alloc_platformdata(&pdev->dev);
 	if (gf_dev == NULL)
@@ -773,7 +773,7 @@ static int gw9558_probe(struct platform_device *pdev)
 	if (retval)
 		goto gw9558_platform_probe_failed;
 
-	pr_info("is successful\n");
+	pr_debug("is successful\n");
 	return retval;
 
 gw9558_platform_probe_failed:
@@ -788,7 +788,7 @@ static int gw9558_probe(struct spi_device *spi)
 	int retval = -ENOMEM;
 	struct gf_device *gf_dev = NULL;
 
-	pr_info("spi_driver Entry\n");
+	pr_debug("spi_driver Entry\n");
 
 	gf_dev = alloc_platformdata(&spi->dev);
 	if (gf_dev == NULL)
@@ -807,7 +807,7 @@ static int gw9558_probe(struct spi_device *spi)
 		pr_err("failed to setup spi conf\n");
 		goto gw9558_spi_spi_setup_failed;
 	} else {
-		pr_info("setup spi success.\n");
+		pr_debug("setup spi success.\n");
 	}
 
 	/* init transfer buffer */
@@ -821,7 +821,7 @@ static int gw9558_probe(struct spi_device *spi)
 	if (retval)
 		goto gw9558_spi_probe_failed;
 
-	pr_info("is successful\n");
+	pr_debug("is successful\n");
 	return retval;
 
 gw9558_spi_probe_failed:
@@ -840,7 +840,7 @@ static int gw9558_remove_common(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 
 	gw9558_hw_power_enable(gf_dev, 0);
 	spi_clk_unregister(gf_dev->clk_setting);
@@ -903,7 +903,7 @@ static int gw9558_pm_suspend(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 	disable_fp_debug_timer(gf_dev->logger);
 	return 0;
 }
@@ -912,7 +912,7 @@ static int gw9558_pm_resume(struct device *dev)
 {
 	struct gf_device *gf_dev = dev_get_drvdata(dev);
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 	enable_fp_debug_timer(gf_dev->logger);
 	return 0;
 }
@@ -944,7 +944,7 @@ static int __init gw9558_init(void)
 {
 	int retval = 0;
 
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	retval = spi_register_driver(&gw9558_spi_driver);
 #else
@@ -960,7 +960,7 @@ module_init(gw9558_init);
 
 static void __exit gw9558_exit(void)
 {
-	pr_info("Entry\n");
+	pr_debug("Entry\n");
 #ifndef ENABLE_SENSORS_FPRINT_SECURE
 	spi_unregister_driver(&gw9558_spi_driver);
 #else

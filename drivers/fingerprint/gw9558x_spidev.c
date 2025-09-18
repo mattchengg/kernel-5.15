@@ -8,7 +8,7 @@ void gw9558_spi_setup_conf(struct gf_device *gf_dev, u32 bits)
 	if (gf_dev->prev_bits_per_word != gf_dev->spi->bits_per_word) {
 		if (spi_setup(gf_dev->spi))
 			pr_err("failed to setup spi conf\n");
-		pr_info("prev-bpw:%d, bpw:%d\n",
+		pr_debug("prev-bpw:%d, bpw:%d\n",
 				gf_dev->prev_bits_per_word, gf_dev->spi->bits_per_word);
 		gf_dev->prev_bits_per_word = gf_dev->spi->bits_per_word;
 	}
