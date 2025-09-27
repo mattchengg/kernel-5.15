@@ -656,7 +656,7 @@ enum mfc_sfr_dump_type {
 
 enum mfc_logging_option {
 	MFC_LOGGING_NONE		= 0,
-	MFC_LOGGING_PRINTK		= (1 << 0),
+	MFC_LOGGING_PRINTK		= 0,
 	MFC_LOGGING_MEMLOG_PRINTF	= (1 << 1),
 	MFC_LOGGING_MEMLOG_SFR_DUMP	= (1 << 2),
 	MFC_LOGGING_MEMLOG		= ((1 << 1) | (1 << 2)),
