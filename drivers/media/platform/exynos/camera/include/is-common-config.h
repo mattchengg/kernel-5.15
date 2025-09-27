@@ -517,6 +517,7 @@ int is_get_debug_sensor(void);
 #define probe_warn(fmt, args...)	\
 	pr_warn("[@][WRN]" fmt "\n", ##args)
 
+#if IS_ENABLED(CONFIG_SEC_DEBUG)
 #if defined(DEBUG_LOG_MEMORY)
 #define is_err(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
 #define is_warn(fmt, ...)	printk(KERN_DEBUG fmt, ##__VA_ARGS__)
@@ -529,6 +530,13 @@ int is_get_debug_sensor(void);
 #define is_dbg(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define is_info(fmt, ...)	pr_info(fmt, ##__VA_ARGS__)
 #define is_cont(fmt, ...)	pr_cont(fmt, ##__VA_ARGS__)
+#endif
+#else
+#define is_err(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
+#define is_warn(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
+#define is_dbg(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
+#define is_info(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
+#define is_cont(fmt, ...)	pr_debug(fmt, ##__VA_ARGS__)
 #endif
 
 #define merr_common(prefix, fmt, instance, args...)		\
