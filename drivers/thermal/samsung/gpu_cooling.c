@@ -482,7 +482,9 @@ static int get_static_power(struct gpufreq_cooling_device *gpufreq_cdev,
 	voltage = gpu_dvfs_get_voltage(freq);
 
 	if (voltage == 0) {
+#if 0
 		pr_warn("Failed to get voltage for frequency %lu\n", freq);
+#endif
 		return -EINVAL;
 	}
 

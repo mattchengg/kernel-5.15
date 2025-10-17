@@ -399,8 +399,10 @@ static int get_static_power(struct exynos_cpufreq_cooling_device *cpufreq_cdev,
 	dev_pm_opp_put(opp);
 
 	if (voltage == 0) {
+#if 0
 		dev_err_ratelimited(dev, "Failed to get voltage for frequency %lu\n",
 				    freq_hz);
+#endif
 		return -EINVAL;
 	}
 
