@@ -51,40 +51,16 @@ void exynos_acpm_tmu_log(bool mode)
 	acpm_tmu_log = mode;
 }
 
-#define acpm_ipc_latency_check() \
-	do { \
-		if (acpm_tmu_log) { \
-			pr_info("[acpm_tmu] type 0x%02x latency %llu ns ret %d\n", \
-					message->req.type, latency, ret); \
-		} \
-	} while (0)
-
-#define acpm_ipc_err_check() \
-	do { \
-		if (ret < 0) { \
-			pr_warn("[acpm_tmu] IPC error! type 0x%02x latency %llu ns ret %d\n", \
-					message->req.type, latency, ret); \
-		} \
-	} while (0)
 
 static void exynos_acpm_tmu_ipc_send_data(union tmu_ipc_message *message)
 {
 
 	struct ipc_config config;
-	int ret;
-	unsigned long long before, after, latency;
 
 	config.cmd = message->data;
 	config.response = true;
 	config.indirection = false;
-
-	before = sched_clock();
-	ret = esca_ipc_send_data(acpm_tmu_ch_num, &config);
-	after = sched_clock();
-	latency = after - before;
-
-	acpm_ipc_err_check();
-	acpm_ipc_latency_check();
+	esca_ipc_send_data(acpm_tmu_ch_num, &config);
 }
 
 /*

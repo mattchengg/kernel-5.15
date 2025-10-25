@@ -707,7 +707,7 @@ static int exynos_get_temp(void *p, int *temp)
 	// Update thermal status
 	if (update_thermal_status) {
 		ktime_t diff;
-		ktime_t cur_time = sched_clock() / NSEC_PER_MSEC;
+		ktime_t cur_time = ktime_get() / NSEC_PER_MSEC;
 
 		diff = cur_time - data->last_thermal_status_updated;
 
