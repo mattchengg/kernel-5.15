@@ -352,32 +352,10 @@ static void control_type_knob(int type)
 {
 	struct type *tp = &gmc.types[type];
 	struct ctrl *kn = &tp->knob;
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	int cluster;
-	struct thermal_zone_device *tz;
-	struct exynos_tmu_data *td;
-#endif
 
-	if (tp->status) {
+	if (tp->status)
 		set_control_knob(kn, type);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-		if (tp->throttle) {
-			/* Set TMU throttle mode */
-			for_each_cluster(cluster) {
-				tz = thermal_zone_get_zone_by_name(cpu_tz_names[cluster]);
-				td = exynos_tmu_get_data_from_tz(tz);
-				exynos_tmu_set_boost_mode(td, THROTTLE_MODE, false);
-			}
-			tz = thermal_zone_get_zone_by_name(gpu_tz_names);
-			td = exynos_tmu_get_data_from_tz(tz);
-			exynos_tmu_set_boost_mode(td, THROTTLE_MODE, false);
-
-			if (gmc.debug)
-				pr_info("[%s] type%d tmu throttle\n", prefix, type);
-		}
-#endif
-	} else
+	else
 		reset_control_knob(kn, type);
 }
 

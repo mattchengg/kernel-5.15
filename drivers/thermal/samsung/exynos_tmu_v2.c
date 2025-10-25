@@ -603,22 +603,6 @@ EXPORT_SYMBOL_GPL(exynos_build_static_power_table);
 
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
 #else
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static enum exynos_tmu_boost_mode exynos_tmu_get_boost_status(void)
-{
-	struct exynos_tmu_data *devnode;
-	enum exynos_tmu_boost_mode ret = THROTTLE_MODE;
-
-	list_for_each_entry(devnode, &dtm_dev_list, node) {
-		if (devnode->boost_param.use_boost && devnode->boost_param.boost_mode < THROTTLE_MODE) {
-			ret = STANDBY_MODE;
-			break;
-		}
-	}
-
-	return ret;
-}
-#endif
 static void exynos_report_trigger(struct exynos_tmu_data *p)
 {
 	struct thermal_zone_device *tz = p->tzd;
@@ -627,35 +611,6 @@ static void exynos_report_trigger(struct exynos_tmu_data *p)
 		pr_err("No thermal zone device defined\n");
 		return;
 	}
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	mutex_lock(&p->lock);
-	if (p->boost_param.use_boost_sync) {
-		enum exynos_tmu_boost_mode boost_mode = exynos_tmu_get_boost_status();
-		if (p->boost_param.boost_mode == STANDBY_MODE) {
-			if (boost_mode == THROTTLE_MODE) {
-				p->boost_param.boost_mode = THROTTLE_MODE;
-
-				tz->ops->get_trip_temp(tz, 2, &p->boost_param.boost_mode_trip_2_temp);
-				tz->ops->get_trip_temp(tz, 3, &p->boost_param.boost_mode_trip_3_temp);
-				tz->ops->get_trip_temp(tz, 4, &p->boost_param.boost_mode_trip_4_temp);
-
-				tz->ops->set_trip_temp(tz, 2, p->boost_param.throttle_mode_trip_2_temp);
-				tz->ops->set_trip_temp(tz, 3, p->boost_param.throttle_mode_trip_3_temp);
-				tz->ops->set_trip_temp(tz, 4, p->boost_param.throttle_mode_trip_4_temp);
-			}
-		} else {
-			if (boost_mode == STANDBY_MODE) {
-				p->boost_param.boost_mode = STANDBY_MODE;
-
-				tz->ops->set_trip_temp(tz, 2, p->boost_param.boost_mode_trip_2_temp);
-				tz->ops->set_trip_temp(tz, 3, p->boost_param.boost_mode_trip_3_temp);
-				tz->ops->set_trip_temp(tz, 4, p->boost_param.boost_mode_trip_4_temp);
-			}
-		}
-	}
-	mutex_unlock(&p->lock);
-#endif
 
 	thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
 }
@@ -1218,6 +1173,7 @@ static int exynos_pi_controller(struct exynos_tmu_data *data, int control_temp)
 	return ret;
 }
 #endif
+
 struct exynos_tmu_data *exynos_tmu_get_data_from_tz(struct thermal_zone_device *tz)
 {
 	struct exynos_tmu_data *data = NULL;
@@ -1230,84 +1186,6 @@ struct exynos_tmu_data *exynos_tmu_get_data_from_tz(struct thermal_zone_device *
 }
 EXPORT_SYMBOL_GPL(exynos_tmu_get_data_from_tz);
 
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static void __exynos_tmu_set_boost_mode(struct exynos_tmu_data *data, enum exynos_tmu_boost_mode new_mode, ktime_t cur_time)
-{
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-#else
-	enum exynos_tmu_boost_mode cur_mode = data->boost_param.boost_mode;
-	struct thermal_zone_device *tz = data->tzd;
-	struct exynos_pi_param *params = data->pi_param;
-	struct exynos_tmu_data *devnode;
-	u32 dfs_temp;
-	bool update_boost_sync = false;
-	bool update_boost_mode_time = true;
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_mode(data->id, (int)new_mode,
-			BOOST_MODE_FROM_DTM);
-#else
-	if (!(data->boost_param.use_boost || data->boost_param.use_boost_sync))
-		return;
-
-	data->boost_param.boost_mode = new_mode;
-	data->boost_param.boost_threshold_cnt = 0;
-
-	if (cur_mode == STANDBY_MODE && new_mode == BOOST_MODE) {
-		tz->ops->get_trip_temp(tz, params->trip_control_temp, &data->boost_param.boost_mode_control_temp);
-		tz->ops->get_trip_temp(tz, params->trip_switch_on, &data->boost_param.boost_mode_switch_on);
-		data->boost_param.boost_mode_sustainable_power = params->sustainable_power;
-		data->boost_param.boost_mode_hp_in_threshold = data->hotplug_in_threshold * MCELSIUS;
-		data->boost_param.boost_mode_hp_out_threshold = data->hotplug_out_threshold * MCELSIUS;
-
-		data->boost_param.sum_boost_time = 0;
-		data->boost_param.last_boost_time = cur_time;
-	} else if (cur_mode == AMBIENT_BOOT_MODE && new_mode == THROTTLE_MODE) {
-		data->boost_param.boost_mode = BOOT_MODE;
-		update_boost_mode_time = false;
-	} else if (new_mode == THROTTLE_MODE || new_mode == BOOT_MODE) {
-		tz->ops->set_trip_temp(tz, params->trip_control_temp, data->boost_param.throttle_mode_control_temp);
-		tz->ops->set_trip_temp(tz, params->trip_switch_on, data->boost_param.throttle_mode_switch_on);
-		params->sustainable_power = data->boost_param.throttle_mode_sustainable_power;
-		if (new_mode == BOOT_MODE)
-			exynos_acpm_tmu_change_threshold(data->id, data->boost_param.throttle_mode_dfs_temp / MCELSIUS, 6);
-		else if ((cur_mode == BOOT_MODE || cur_mode == AMBIENT_BOOT_MODE) && new_mode == THROTTLE_MODE) {
-			tz->ops->get_trip_temp(tz, 6, &dfs_temp);
-			exynos_acpm_tmu_change_threshold(data->id, dfs_temp / MCELSIUS, 6);
-		}
-		data->hotplug_in_threshold = data->boost_param.throttle_mode_hp_in_threshold / MCELSIUS;
-		data->hotplug_out_threshold = data->boost_param.throttle_mode_hp_out_threshold / MCELSIUS;
-
-		update_boost_sync = true;
-	} else if (cur_mode == THROTTLE_MODE && new_mode == STANDBY_MODE) {
-		tz->ops->set_trip_temp(tz, params->trip_control_temp, data->boost_param.boost_mode_control_temp);
-		tz->ops->set_trip_temp(tz, params->trip_switch_on, data->boost_param.boost_mode_switch_on);
-		params->sustainable_power = data->boost_param.boost_mode_sustainable_power;
-
-		data->hotplug_in_threshold = data->boost_param.boost_mode_hp_in_threshold / MCELSIUS;
-		data->hotplug_out_threshold = data->boost_param.boost_mode_hp_out_threshold / MCELSIUS;
-
-		update_boost_sync = true;
-	} else if (cur_mode == BOOT_MODE && new_mode == AMBIENT_MODE) {
-		data->boost_param.boost_mode = AMBIENT_BOOT_MODE;
-		update_boost_mode_time = false;
-	} else if (cur_mode == AMBIENT_BOOT_MODE && new_mode == AMBIENT_MODE) {
-		tz->ops->get_trip_temp(tz, 6, &dfs_temp);
-		exynos_acpm_tmu_change_threshold(data->id, dfs_temp / MCELSIUS, 6);
-	}
-
-	if (update_boost_mode_time)
-		data->boost_param.last_boost_mode_updated = cur_time;
-
-	if (update_boost_sync)
-		list_for_each_entry(devnode, &dtm_dev_list, node)
-			if (devnode->boost_param.use_boost_sync)
-				exynos_report_trigger(devnode);
-#endif
-}
-#endif
-
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
 #else
 static void exynos_pi_thermal(struct exynos_tmu_data *data)
@@ -1317,9 +1195,7 @@ static void exynos_pi_thermal(struct exynos_tmu_data *data)
 	struct exynos_pi_param *params = data->pi_param;
 	int ret = 0;
 	int switch_on_temp, control_temp, delay;
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	ktime_t cur_time = ktime_get();
-#endif
+
 	if (atomic_read(&data->in_suspend))
 		return;
 
@@ -1334,46 +1210,6 @@ static void exynos_pi_thermal(struct exynos_tmu_data *data)
 	thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
 	mutex_lock(&data->lock);
 
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	/* Check pi boost mode condition */
-	if (data->boost_param.use_boost) {
-		if (data->boost_param.boost_mode == STANDBY_MODE) {
-			if (tz->temperature >= data->boost_param.boost_mode_threshold) {
-				data->boost_param.boost_threshold_cnt++;
-				if (data->boost_param.boost_threshold_cnt >= 5) {
-					// STANDBY_MODE -> BOOST_MODE
-					__exynos_tmu_set_boost_mode(data, BOOST_MODE, cur_time);
-				}
-			} else
-				data->boost_param.boost_threshold_cnt = 0;
-		} else if (data->boost_param.boost_mode == BOOST_MODE) {
-			if (tz->temperature < data->boost_param.boost_mode_exit_threshold) {
-				__exynos_tmu_set_boost_mode(data, STANDBY_MODE, cur_time);
-			} else {
-				if (tz->temperature >= data->boost_param.boost_mode_threshold)
-					data->boost_param.sum_boost_time += (cur_time - data->boost_param.last_boost_time);
-
-				if (data->boost_param.sum_boost_time >= data->boost_param.boost_mode_duration)
-					// BOOST_MODE -> THROTTLE_MODE
-					__exynos_tmu_set_boost_mode(data, THROTTLE_MODE, cur_time);
-				data->boost_param.last_boost_time = cur_time;
-			}
-		} else if (data->boost_param.boost_mode == THROTTLE_MODE) {
-			if (tz->temperature >= data->boost_param.throttle_mode_threshold)
-				data->boost_param.last_boost_mode_updated = cur_time;
-			else if (data->boost_param.last_boost_mode_updated + data->boost_param.throttle_mode_duration < cur_time
-					|| tz->temperature < data->boost_param.boost_mode_exit_threshold)
-				// THROTTLE_MODE -> STANDBY_MODE
-				__exynos_tmu_set_boost_mode(data, STANDBY_MODE, cur_time);
-		} else if (data->boost_param.boost_mode == BOOT_MODE) {
-			if (data->boost_param.last_boost_mode_updated + data->boost_param.throttle_mode_duration < cur_time)
-				__exynos_tmu_set_boost_mode(data, THROTTLE_MODE, cur_time);
-		} else if (data->boost_param.boost_mode == AMBIENT_BOOT_MODE) {
-			if (data->boost_param.last_boost_mode_updated + data->boost_param.throttle_mode_duration < cur_time)
-				__exynos_tmu_set_boost_mode(data, AMBIENT_MODE, cur_time);
-		}
-	}
-#endif
 	ret = tz->ops->get_trip_temp(tz, params->trip_switch_on,
 				     &switch_on_temp);
 
@@ -1412,36 +1248,6 @@ polling:
 		start_pi_polling(data, delay);
 	mutex_unlock(&data->lock);
 }
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-void exynos_tmu_set_boost_mode(struct exynos_tmu_data *data, enum exynos_tmu_boost_mode new_mode, bool from_amb)
-{
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-#else
-	enum exynos_tmu_boost_mode cur_mode = data->boost_param.boost_mode;
-	ktime_t cur_time = ktime_get();
-#endif
-	if (!data)
-		return;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_mode(data->id, new_mode, (int)from_amb);
-#else
-	mutex_lock(&data->lock);
-	if (from_amb == true || (from_amb == false && cur_mode != AMBIENT_MODE))
-		__exynos_tmu_set_boost_mode(data, new_mode, cur_time);
-	mutex_unlock(&data->lock);
-
-	if (cur_mode == AMBIENT_MODE && new_mode != AMBIENT_MODE) {
-		if (data->boost_param.use_boost)
-			exynos_pi_thermal(data);
-		else if (data->boost_param.use_boost_sync)
-			exynos_report_trigger(data);
-	}
-#endif
-}
-EXPORT_SYMBOL_GPL(exynos_tmu_set_boost_mode);
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
@@ -1807,117 +1613,9 @@ static int exynos_map_dt_data(struct platform_device *pdev)
 		else
 			params->sustainable_power = value;
 
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-		data->boost_param.use_boost = of_property_read_bool(pdev->dev.of_node, "use-boost");
-
-		if (of_property_read_bool(pdev->dev.of_node, "use-dt-boost-param")) {
-			if (of_property_read_u32(pdev->dev.of_node, "boost_mode_threshold",
-						&data->boost_param.boost_mode_threshold) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "boost_mode_threshold %d\n", data->boost_param.boost_mode_threshold);
-
-			if (of_property_read_u32(pdev->dev.of_node, "boost_mode_exit_threshold",
-						&data->boost_param.boost_mode_exit_threshold) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "boost_mode_exit_threshold %d\n", data->boost_param.boost_mode_exit_threshold);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_threshold",
-						&data->boost_param.throttle_mode_threshold) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_threshold %d\n", data->boost_param.throttle_mode_threshold);
-
-			if (of_property_read_u32(pdev->dev.of_node, "boost_mode_duration",
-						(u32 *)&data->boost_param.boost_mode_duration) < 0)
-				data->boost_param.use_boost = false;
-			else {
-				dev_info(&pdev->dev, "boost_mode_duration %d\n", data->boost_param.boost_mode_duration);
-				data->boost_param.boost_mode_duration *= NSEC_PER_SEC;
-			}
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_duration",
-						(u32 *)&data->boost_param.throttle_mode_duration) < 0)
-				data->boost_param.use_boost = false;
-			else {
-				dev_info(&pdev->dev, "throttle_mode_duration %d\n", data->boost_param.throttle_mode_duration);
-				data->boost_param.throttle_mode_duration *= NSEC_PER_SEC;
-			}
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_control_temp",
-						&data->boost_param.throttle_mode_control_temp) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_control_temp %d\n",
-						data->boost_param.throttle_mode_control_temp);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_switch_on",
-						&data->boost_param.throttle_mode_switch_on) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_switch_on %d\n", data->boost_param.throttle_mode_switch_on);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_dfs_temp",
-						&data->boost_param.throttle_mode_dfs_temp) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_dfs_temp %d\n", data->boost_param.throttle_mode_dfs_temp);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_sustainable_power",
-						&data->boost_param.throttle_mode_sustainable_power) < 0)
-				data->boost_param.use_boost = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_sustainable_power %d\n",
-						data->boost_param.throttle_mode_sustainable_power);
-
-			if (data->hotplug_enable) {
-				if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_hp_in_threshold",
-							&data->boost_param.throttle_mode_hp_in_threshold) < 0)
-					data->boost_param.use_boost = false;
-				else
-					dev_info(&pdev->dev, "throttle_mode_hp_in_threshold %d\n",
-							data->boost_param.throttle_mode_hp_in_threshold);
-
-				if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_hp_out_threshold",
-							&data->boost_param.throttle_mode_hp_out_threshold) < 0)
-					data->boost_param.use_boost = false;
-				else
-					dev_info(&pdev->dev, "throttle_mode_hp_out_threshold %d\n",
-							data->boost_param.throttle_mode_hp_out_threshold);
-			}
-		}
-#endif
 		data->pi_param = params;
 	} else {
 		data->use_pi_thermal = false;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-		data->boost_param.use_boost_sync = of_property_read_bool(pdev->dev.of_node, "use-boost-sync");
-
-		if (data->boost_param.use_boost_sync) {
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_trip_2_temp",
-						&data->boost_param.throttle_mode_trip_2_temp) < 0)
-				data->boost_param.use_boost_sync = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_trip_2_temp %d\n",
-						data->boost_param.throttle_mode_trip_2_temp);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_trip_3_temp",
-						&data->boost_param.throttle_mode_trip_3_temp) < 0)
-				data->boost_param.use_boost_sync = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_trip_3_temp %d\n",
-						data->boost_param.throttle_mode_trip_3_temp);
-
-			if (of_property_read_u32(pdev->dev.of_node, "throttle_mode_trip_4_temp",
-						&data->boost_param.throttle_mode_trip_4_temp) < 0)
-				data->boost_param.use_boost_sync = false;
-			else
-				dev_info(&pdev->dev, "throttle_mode_trip_4_temp %d\n",
-						data->boost_param.throttle_mode_trip_4_temp);
-		}
-#endif
 	}
 
 	return 0;
@@ -2242,43 +1940,6 @@ temp_show(struct device *dev, struct device_attribute *devattr,
 			data.val[4], data.val[5], data.val[6], data.val[7]);
 }
 
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-use_boost_show(struct device *dev, struct device_attribute *devattr,
-		       char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 use_boost;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_USE_BOOST, &use_boost);
-	data->boost_param.use_boost = (bool)use_boost;
-#endif
-	return sprintf(buf, "%u\n", data->boost_param.use_boost);
-}
-
-static ssize_t
-use_boost_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 use_boost;
-
-	if (kstrtou32(buf, 10, &use_boost))
-		return -EINVAL;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-		exynos_acpm_tmu_set_boost_param(data->id, BOOST_USE_BOOST, use_boost);
-#endif
-	data->boost_param.use_boost = !!use_boost;
-
-	return count;
-}
-#endif
-
 static ssize_t
 emergency_frequency_show(struct device *dev, struct device_attribute *devattr,
 		       char *buf)
@@ -2320,198 +1981,6 @@ emergency_frequency_store(struct device *dev, struct device_attribute *devattr,
 
 	return count;
 }
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-use_boost_sync_show(struct device *dev, struct device_attribute *devattr,
-		char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 use_boost_sync;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_USE_BOOST_SYNC,
-			&use_boost_sync);
-	data->boost_param.use_boost_sync = (bool)use_boost_sync;
-#endif
-	return sprintf(buf, "%u\n", data->boost_param.use_boost_sync);
-}
-
-static ssize_t
-use_boost_sync_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 use_boost_sync;
-
-	if (kstrtou32(buf, 10, &use_boost_sync))
-		return -EINVAL;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_param(data->id, BOOST_USE_BOOST_SYNC,
-			use_boost_sync);
-#endif
-	data->boost_param.use_boost_sync = !!use_boost_sync;
-
-	return count;
-}
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-boost_mode_show(struct device *dev, struct device_attribute *devattr,
-		       char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 boost_mode;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_BOOST_MODE,
-			&boost_mode);
-	data->boost_param.boost_mode = (enum exynos_tmu_boost_mode)boost_mode;
-#endif
-	return sprintf(buf, "%d\n", data->boost_param.boost_mode);
-}
-
-static ssize_t
-boost_mode_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 boost_mode;
-
-	if (kstrtou32(buf, 10, &boost_mode))
-		return -EINVAL;
-
-	if (boost_mode < MODE_END)
-		exynos_tmu_set_boost_mode(data, boost_mode, true);
-
-	return count;
-}
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-boost_mode_duration_show(struct device *dev, struct device_attribute *devattr,
-		       char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 boost_mode_duration;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_BOOST_MODE_DURATION,
-			&boost_mode_duration);
-	data->boost_param.boost_mode_duration = boost_mode_duration;
-#endif
-	return sprintf(buf, "%u\n", data->boost_param.boost_mode_duration / NSEC_PER_SEC);
-}
-
-static ssize_t
-boost_mode_duration_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 boost_mode_duration;
-
-	if (kstrtou32(buf, 10, &boost_mode_duration))
-		return -EINVAL;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_param(data->id, BOOST_BOOST_MODE_DURATION,
-			boost_mode_duration);
-#endif
-	data->boost_param.boost_mode_duration = boost_mode_duration * NSEC_PER_SEC;
-
-	return count;
-}
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-throttle_mode_duration_show(struct device *dev, struct device_attribute *devattr,
-		       char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 throttle_mode_duration;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_THROTTLE_MODE_DURATION,
-			&throttle_mode_duration);
-	data->boost_param.throttle_mode_duration = throttle_mode_duration;
-#endif
-
-	return sprintf(buf, "%u\n", data->boost_param.throttle_mode_duration / NSEC_PER_SEC);
-}
-
-static ssize_t
-throttle_mode_duration_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 throttle_mode_duration;
-
-	if (kstrtou32(buf, 10, &throttle_mode_duration))
-		return -EINVAL;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_param(data->id, BOOST_THROTTLE_MODE_DURATION,
-			throttle_mode_duration);
-#endif
-	data->boost_param.throttle_mode_duration = throttle_mode_duration * NSEC_PER_SEC;
-
-	return count;
-}
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static ssize_t
-throttle_mode_sustainable_power_show(struct device *dev, struct device_attribute *devattr,
-		       char *buf)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	s64 throttle_mode_sustainable_power;
-
-	exynos_acpm_tmu_get_boost_param(data->id, BOOST_THROTTLE_MODE_SUSTAINABLE_POWER,
-			&throttle_mode_sustainable_power);
-	data->boost_param.throttle_mode_sustainable_power = throttle_mode_sustainable_power;
-#endif
-	return sprintf(buf, "%u\n", data->boost_param.throttle_mode_sustainable_power);
-}
-
-static ssize_t
-throttle_mode_sustainable_power_store(struct device *dev, struct device_attribute *devattr,
-			const char *buf, size_t count)
-{
-	struct platform_device *pdev = to_platform_device(dev);
-	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
-	u32 throttle_mode_sustainable_power;
-
-	if (kstrtou32(buf, 10, &throttle_mode_sustainable_power))
-		return -EINVAL;
-
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-	exynos_acpm_tmu_set_boost_param(data->id, BOOST_THROTTLE_MODE_SUSTAINABLE_POWER,
-			throttle_mode_sustainable_power);
-#endif
-	data->boost_param.throttle_mode_sustainable_power = throttle_mode_sustainable_power;
-
-	return count;
-}
-#endif
 
 static ssize_t thermal_log_show(struct file *file, struct kobject *kobj,
 		struct bin_attribute *attr, char *buf, loff_t offset, size_t count)
@@ -2740,15 +2209,6 @@ static DEVICE_ATTR(hotplug_in_temp, S_IWUSR | S_IRUGO, hotplug_in_temp_show,
 		hotplug_in_temp_store);
 
 static DEVICE_ATTR_RW(sustainable_power);
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static DEVICE_ATTR_RW(throttle_mode_sustainable_power);
-
-static DEVICE_ATTR_RW(use_boost);
-static DEVICE_ATTR_RW(use_boost_sync);
-static DEVICE_ATTR_RW(boost_mode_duration);
-static DEVICE_ATTR_RW(throttle_mode_duration);
-static DEVICE_ATTR_RW(boost_mode);
-#endif
 static DEVICE_ATTR_RW(emergency_frequency);
 static DEVICE_ATTR(temp, S_IRUGO, temp_show, NULL);
 
@@ -2768,31 +2228,6 @@ create_s32_param_attr(integral_cutoff);
 create_s32_param_attr(k_d);
 #endif
 
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-create_s32_boost_param_attr(boost_mode_threshold, BOOST_BOOST_MODE_THRESHOLD);
-create_s32_boost_param_attr(boost_mode_exit_threshold, BOOST_BOOST_MODE_EXIT_THRESHOLD);
-create_s32_boost_param_attr(throttle_mode_threshold, BOOST_THROTTLE_MODE_THRESHOLD);
-create_s32_boost_param_attr(throttle_mode_control_temp, BOOST_THROTTLE_MODE_CONTROL_TEMP);
-create_s32_boost_param_attr(throttle_mode_switch_on, BOOST_THROTTLE_MODE_SWITCH_ON);
-create_s32_boost_param_attr(throttle_mode_dfs_temp, BOOST_THROTTLE_MODE_DFS_TEMP);
-create_s32_boost_param_attr(throttle_mode_trip_2_temp, BOOST_THROTTLE_MODE_TRIP_2_TEMP);
-create_s32_boost_param_attr(throttle_mode_trip_3_temp, BOOST_THROTTLE_MODE_TRIP_3_TEMP);
-create_s32_boost_param_attr(throttle_mode_trip_4_temp, BOOST_THROTTLE_MODE_TRIP_4_TEMP);
-#else
-create_s32_boost_param_attr(boost_mode_threshold);
-create_s32_boost_param_attr(boost_mode_exit_threshold);
-create_s32_boost_param_attr(throttle_mode_threshold);
-create_s32_boost_param_attr(throttle_mode_control_temp);
-create_s32_boost_param_attr(throttle_mode_switch_on);
-create_s32_boost_param_attr(throttle_mode_dfs_temp);
-create_s32_boost_param_attr(throttle_mode_trip_2_temp);
-create_s32_boost_param_attr(throttle_mode_trip_3_temp);
-create_s32_boost_param_attr(throttle_mode_trip_4_temp);
-#endif
-#endif
-
 static struct attribute *exynos_tmu_attrs[] = {
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
 	&dev_attr_cooling_dev_state.attr,
@@ -2809,23 +2244,6 @@ static struct attribute *exynos_tmu_attrs[] = {
 	&dev_attr_k_d.attr,
 	&dev_attr_i_max.attr,
 	&dev_attr_integral_cutoff.attr,
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	&dev_attr_boost_mode_threshold.attr,
-	&dev_attr_throttle_mode_threshold.attr,
-	&dev_attr_throttle_mode_control_temp.attr,
-	&dev_attr_throttle_mode_switch_on.attr,
-	&dev_attr_boost_mode.attr,
-	&dev_attr_use_boost.attr,
-	&dev_attr_use_boost_sync.attr,
-	&dev_attr_boost_mode_duration.attr,
-	&dev_attr_throttle_mode_duration.attr,
-	&dev_attr_throttle_mode_sustainable_power.attr,
-	&dev_attr_boost_mode_exit_threshold.attr,
-	&dev_attr_throttle_mode_trip_2_temp.attr,
-	&dev_attr_throttle_mode_trip_3_temp.attr,
-	&dev_attr_throttle_mode_trip_4_temp.attr,
-	&dev_attr_throttle_mode_dfs_temp.attr,
-#endif
 	&dev_attr_temp.attr,
 	NULL,
 };
@@ -3068,24 +2486,9 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 			data->limited_threshold_release_2 = limited_threshold_release;
 		}
 
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-		parse_ect_get_boost_param(boost_mode_threshold, MCELSIUS);
-		parse_ect_get_boost_param(boost_mode_exit_threshold, MCELSIUS);
-		parse_ect_get_boost_param(throttle_mode_threshold, MCELSIUS);
-		parse_ect_get_boost_param(boost_mode_duration, NSEC_PER_SEC);
-		parse_ect_get_boost_param(throttle_mode_duration, NSEC_PER_SEC);
-		parse_ect_get_boost_param(throttle_mode_sustainable_power, 1);
-		parse_ect_get_boost_param(throttle_mode_control_temp, MCELSIUS);
-		parse_ect_get_boost_param(throttle_mode_switch_on, MCELSIUS);
-		parse_ect_get_boost_param(throttle_mode_dfs_temp, MCELSIUS);
-#endif
 		if (hotplug_out_threshold != 0 && hotplug_in_threshold != 0) {
 			data->hotplug_out_threshold = hotplug_out_threshold;
 			data->hotplug_in_threshold = hotplug_in_threshold;
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-			parse_ect_get_boost_param(throttle_mode_hp_in_threshold, MCELSIUS);
-			parse_ect_get_boost_param(throttle_mode_hp_out_threshold, MCELSIUS);
-#endif
 			data->hotplug_enable = true;
 		} else {
 			data->hotplug_enable = false;
@@ -3096,57 +2499,6 @@ static int exynos_tmu_parse_ect(struct exynos_tmu_data *data)
 #endif
 
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-static void exynos_tmu_set_boost_param(struct exynos_tmu_data *data)
-{
-	struct exynos_boost_param *boost_param = &data->boost_param;
-
-	if (boost_param->use_boost) {
-		exynos_acpm_tmu_set_boost_param(data->id, BOOST_USE_BOOST,
-				boost_param->use_boost);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_BOOST_MODE_THRESHOLD,
-				boost_param->boost_mode_threshold);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_BOOST_MODE_EXIT_THRESHOLD,
-				boost_param->boost_mode_exit_threshold);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_THRESHOLD,
-				boost_param->throttle_mode_threshold);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_CONTROL_TEMP,
-				boost_param->throttle_mode_control_temp);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_SWITCH_ON,
-				boost_param->throttle_mode_switch_on);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_DFS_TEMP,
-				boost_param->throttle_mode_dfs_temp);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_SUSTAINABLE_POWER,
-				boost_param->throttle_mode_sustainable_power);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_HP_IN_THRESHOLD,
-				boost_param->throttle_mode_hp_in_threshold);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_HP_OUT_THRESHOLD,
-				boost_param->throttle_mode_hp_out_threshold);
-	} else if (boost_param->use_boost_sync) {
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_USE_BOOST_SYNC,
-				boost_param->use_boost_sync);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_TRIP_2_TEMP,
-				boost_param->throttle_mode_trip_2_temp);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_TRIP_3_TEMP,
-				boost_param->throttle_mode_trip_3_temp);
-		exynos_acpm_tmu_set_boost_param(data->id,
-				BOOST_THROTTLE_MODE_TRIP_4_TEMP,
-				boost_param->throttle_mode_trip_4_temp);
-	}
-}
-#endif
 static void exynos_tmu_set_tmu_data(struct exynos_tmu_data *data)
 {
 	struct thermal_zone_device *tz = data->tzd;
@@ -3468,17 +2820,8 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 		exynos_isp_cooling_init();
 #endif
 
-#if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL) && IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	exynos_tmu_set_boost_param(data);
-#endif
-
-#if IS_ENABLED(CONFIG_EXYNOS_ADAPTIVE_DTM)
-	if (data->boost_param.use_boost) {
-		__exynos_tmu_set_boost_mode(data, BOOST_MODE, ktime_get());
-		__exynos_tmu_set_boost_mode(data, BOOT_MODE, ktime_get());
-	}
-#endif
 	exynos_tmu_control(pdev, true);
+
 #if IS_ENABLED(CONFIG_SEC_PM)
 	exynos_tmu_sec_pm_init();
 #endif
