@@ -67,19 +67,6 @@
 #define CREATE_TRACE_POINTS
 #include <trace/events/thermal_exynos.h>
 
-#if IS_ENABLED(CONFIG_SEC_PM)
-#include <linux/sec_class.h>
-
-static int exynos_tmu_sec_pm_init(void);
-static void exynos_tmu_show_curr_temp(void);
-static void exynos_tmu_show_curr_temp_work(struct work_struct *work);
-
-#define TMU_LOG_PERIOD		10
-
-static DECLARE_DELAYED_WORK(tmu_log_work, exynos_tmu_show_curr_temp_work);
-static int tmu_log_work_canceled;
-#endif /* CONFIG_SEC_PM */
-
 #define EXYNOS_GPU_THERMAL_ZONE_ID		(3)
 
 #define FRAC_BITS 10
@@ -704,7 +691,6 @@ static int exynos_get_temp(void *p, int *temp)
 #endif
 	int acpm_temp = 0, stat = 0;
 	int acpm_data[2];
-	unsigned long long dbginfo;
 	unsigned int limited_max_freq = 0;
 
 	if (!data || !data->enabled)
@@ -863,8 +849,6 @@ static int exynos_get_temp(void *p, int *temp)
 #endif
 	mutex_unlock(&data->lock);
 
-	dbginfo = (((unsigned long long)acpm_data[0]) | (((unsigned long long)acpm_data[1]) << 32));
-	dbg_snapshot_thermal(data, *temp / 1000, data->tmu_name, dbginfo);
 #if IS_ENABLED(CONFIG_EXYNOS_MCINFO) 
 	if (data->id == 0) {
 		mcinfo_count = get_mcinfo_base_count();
@@ -1303,12 +1287,6 @@ static int exynos_tmu_pm_notify(struct notifier_block *nb,
 	case PM_HIBERNATION_PREPARE:
 	case PM_RESTORE_PREPARE:
 	case PM_SUSPEND_PREPARE:
-#if IS_ENABLED(CONFIG_SEC_PM)
-		if (!tmu_log_work_canceled) {
-			tmu_log_work_canceled = 1;
-			cancel_delayed_work_sync(&tmu_log_work);
-		}
-#endif /* CONFIG_SEC_PM */
 		if (data->use_pi_thermal)
 			mutex_lock(&data->lock);
 
@@ -1334,12 +1312,6 @@ static int exynos_tmu_pm_notify(struct notifier_block *nb,
 			exynos_pi_thermal(data);
 #endif
 		}
-#if IS_ENABLED(CONFIG_SEC_PM)
-		if (tmu_log_work_canceled) {
-			tmu_log_work_canceled = 0;
-			schedule_delayed_work(&tmu_log_work, TMU_LOG_PERIOD * HZ);
-		}
-#endif /* CONFIG_SEC_PM */
 		break;
 	default:
 		break;
@@ -1981,44 +1953,6 @@ emergency_frequency_store(struct device *dev, struct device_attribute *devattr,
 
 	return count;
 }
-
-static ssize_t thermal_log_show(struct file *file, struct kobject *kobj,
-		struct bin_attribute *attr, char *buf, loff_t offset, size_t count)
-{
-	ssize_t len = 0, printed = 0;
-	static unsigned int front = 0, log_len = 0, i = 0;
-	struct thermal_log *log;
-	char str[256];
-
-	if (offset == 0) {
-		front = dss_get_first_thermal_log_idx();
-		log_len = dss_get_len_thermal_log();
-		printed = 0;
-		i = 0;
-		len = snprintf(str, sizeof(str), "TEST: %d %d\n", front, log_len);
-		memcpy(buf + printed, str, len);
-		printed += len;
-	}
-
-	for ( ; i < log_len; i++) {
-		log = dss_get_thermal_log_iter(i + front);
-		len = snprintf(str, sizeof(str), "%llu %d %s %d %llu\n", log->time, log->cpu, log->cooling_device, log->temp, log->cooling_state);
-
-		if (len + printed <= count) {
-			memcpy(buf + printed, str, len);
-			printed += len;
-		} else
-			break;
-	}
-
-	return printed;
-}
-
-static struct bin_attribute thermal_log_bin_attr = {
-	.attr.name = "thermal_log",
-	.attr.mode = 0444,
-	.read = thermal_log_show,
-};
 
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
 #else
@@ -2777,8 +2711,6 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 		}
 
 		kobj = kobject_create_and_add("exynos-thermal", kernel_kobj);
-		if (sysfs_create_bin_file(kobj, &thermal_log_bin_attr))
-			dev_err(&pdev->dev, "Failed to create bin file\n");
 #if IS_ENABLED(CONFIG_EXYNOS_ESCA_THERMAL)
 #else
 		if (sysfs_create_file(kobj, &thermal_status_attr.attr))
@@ -2822,10 +2754,6 @@ static int exynos_tmu_probe(struct platform_device *pdev)
 
 	exynos_tmu_control(pdev, true);
 
-#if IS_ENABLED(CONFIG_SEC_PM)
-	exynos_tmu_sec_pm_init();
-#endif
-
 	return 0;
 
 err_thermal:
@@ -2833,20 +2761,6 @@ err_thermal:
 err_sensor:
 	return ret;
 }
-
-#if IS_ENABLED(CONFIG_SEC_PM)
-static void exynos_tmu_shutdown(struct platform_device *pdev)
-{
-	if (!tmu_log_work_canceled) {
-		tmu_log_work_canceled = 1;
-		cancel_delayed_work_sync(&tmu_log_work);
-		pr_info("%s: cancel tmu_log_work\n", __func__);
-		exynos_tmu_show_curr_temp();
-	}
-}
-#else
-static void exynos_tmu_shutdown(struct platform_device *pdev) {}
-#endif /* CONFIG_SEC_PM */
 
 #ifdef CONFIG_PM_SLEEP
 static int exynos_tmu_suspend(struct device *dev)
@@ -2950,7 +2864,6 @@ static struct platform_driver exynos_tmu_driver = {
 		.suppress_bind_attrs = true,
 	},
 	.probe = exynos_tmu_probe,
-	.shutdown = exynos_tmu_shutdown,
 };
 
 module_platform_driver(exynos_tmu_driver);
@@ -3098,106 +3011,6 @@ static int exynos_thermal_create_debugfs(void)
 #endif
 	return 0;
 }
-#if IS_ENABLED(CONFIG_SEC_PM)
-#define NR_THERMAL_SENSOR_MAX	10
-
-static int tmu_sec_pm_init_done;
-
-static ssize_t exynos_tmu_get_curr_temp_all(char *buf)
-{
-	struct exynos_tmu_data *data;
-	int temp[NR_THERMAL_SENSOR_MAX] = {0, };
-	int i, id_max = 0;
-	ssize_t ret = 0;
-
-	list_for_each_entry(data, &dtm_dev_list, node) {
-		if (data->id < NR_THERMAL_SENSOR_MAX) {
-			exynos_get_temp(data, &temp[data->id]);
-			temp[data->id] /= 1000;
-
-			if (id_max < data->id)
-				id_max = data->id;
-		} else {
-			pr_err("%s: id:%d %s\n", __func__, data->id,
-					data->tmu_name);
-			continue;
-		}
-	}
-
-	for (i = 0; i <= id_max; i++)
-		ret += snprintf(buf + ret, sizeof(buf), "%d,", temp[i]);
-
-	sprintf(buf + ret - 1, "\n");
-	pr_err("%s: %s", __func__, buf);
-
-	return ret;
-}
-
-static void exynos_tmu_show_curr_temp(void)
-{
-	char buf[32];
-
-	exynos_tmu_get_curr_temp_all(buf);
-}
-
-static void exynos_tmu_show_curr_temp_work(struct work_struct *work)
-{
-	char buf[32];
-
-	exynos_tmu_get_curr_temp_all(buf);
-
-	schedule_delayed_work(&tmu_log_work, TMU_LOG_PERIOD * HZ);
-}
-
-static ssize_t exynos_tmu_curr_temp(struct device *dev,
-			struct device_attribute *attr, char *buf)
-{
-	return exynos_tmu_get_curr_temp_all(buf);
-}
-
-static DEVICE_ATTR(curr_temp, 0444, exynos_tmu_curr_temp, NULL);
-
-static struct attribute *exynos_tmu_sec_pm_attributes[] = {
-	&dev_attr_curr_temp.attr,
-	NULL
-};
-
-static const struct attribute_group exynos_tmu_sec_pm_attr_grp = {
-	.attrs = exynos_tmu_sec_pm_attributes,
-};
-
-static int exynos_tmu_sec_pm_init(void)
-{
-	int ret = 0;
-	struct device *dev;
-
-	if (tmu_sec_pm_init_done)
-		return 0;
-
-	dev = sec_device_create(NULL, "exynos_tmu");
-
-	if (IS_ERR(dev)) {
-		pr_err("%s: failed to create device\n", __func__);
-		return PTR_ERR(dev);
-	}
-
-	ret = sysfs_create_group(&dev->kobj, &exynos_tmu_sec_pm_attr_grp);
-	if (ret) {
-		pr_err("%s: failed to create sysfs group(%d)\n", __func__, ret);
-		goto err_create_sysfs;
-	}
-
-	schedule_delayed_work(&tmu_log_work, 60 * HZ);
-	tmu_sec_pm_init_done = 1;
-
-	return ret;
-
-err_create_sysfs:
-	sec_device_destroy(dev->devt);
-
-	return ret;
-}
-#endif /* CONFIG_SEC_PM */
 
 MODULE_DESCRIPTION("EXYNOS TMU Driver");
 MODULE_LICENSE("GPL");
