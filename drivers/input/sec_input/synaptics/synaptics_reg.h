@@ -32,29 +32,13 @@
 #define SYNAPTICS_TS_TS_DRV_NAME			"SYNAPTICS_TS_TOUCH"
 #define SYNAPTICS_TS_TS_DRV_VERSION		"0100"
 	
-	
 	/**
 	 * @section: Data Comparison helpers
 	 *
-	 * @brief: MAX
-	 *	   Find the maximum value between
-	 *
-	 * @brief: MIN:
-	 *	   Find the minimum value between
 	 *
 	 * @brief: GET_BIT
 	 *	   Return the value of target bit
-	 */
-#define MAX(a, b) \
-		({__typeof__(a) _a = (a); \
-		__typeof__(b) _b = (b); \
-		_a > _b ? _a : _b; })
-	
-#define MIN(a, b) \
-		({__typeof__(a) _a = (a); \
-		__typeof__(b) _b = (b); \
-		_a < _b ? _a : _b; })
-	
+	 */	
 #define GET_BIT(var, pos) \
 		(((var) & (1 << (pos))) >> (pos))
 #define GET_BIT_LSB(var, pos) \
