@@ -607,7 +607,14 @@ bool fuse_lock_inode(struct inode *inode)
 	bool locked = false;
 
 	if (!get_fuse_conn(inode)->parallel_dirops) {
+		if (!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+			fuse_freezer_do_not_count();
+
 		mutex_lock(&get_fuse_inode(inode)->mutex);
+
+		if (!IS_ENABLED(CONFIG_SAMSUNG_PRODUCT_SHIP))
+			fuse_freezer_count();
+
 		locked = true;
 	}
 
@@ -1428,6 +1435,8 @@ static void process_init_reply(struct fuse_mount *fm, struct fuse_args *args,
 		fc->conn_error = 1;
 	}
 
+	ST_LOG("<%s> dev = %u:%u  fuse Initialized",
+			__func__, MAJOR(fc->dev), MINOR(fc->dev));
 	fuse_set_initialized(fc);
 	wake_up_all(&fc->blocked_waitq);
 }
@@ -1479,6 +1488,9 @@ void fuse_send_init(struct fuse_mount *fm)
 	ia->args.force = true;
 	ia->args.nocreds = true;
 	ia->args.end = process_init_reply;
+
+	ST_LOG("<%s> dev = %u:%u  fuse send Initrequest",
+			__func__, MAJOR(fm->fc->dev), MINOR(fm->fc->dev));
 
 	if (unlikely(fm->fc->no_daemon) || fuse_simple_background(fm, &ia->args, GFP_KERNEL) != 0)
 		process_init_reply(fm, &ia->args, -ENOTCONN);
