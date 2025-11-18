@@ -18,9 +18,11 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/init.h>
+#include <linux/compiler_attributes.h>
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
 #include <linux/pm_opp.h>
+#include <linux/sched.h>
 #include <linux/ems.h>
 
 #include <soc/samsung/exynos-cpupm.h>
@@ -157,6 +159,7 @@ static void ucc_update(struct ucc_req *req, int value, enum ucc_req_type type)
 			break;
 		case UCC_UPDATE_REQ:
 			list_del(&req->list);
+			fallthrough;
 		case UCC_ADD_REQ:
 			req->value = value;
 			list_add_priority(req, &ucc.req_list);
@@ -641,7 +644,7 @@ static void release_limit_freq(enum ufc_ctrl_type type)
 		if (!req)
 			return;
 
-		freq_qos_update_request(req, PM_QOS_DEFAULT_VALUE);
+		freq_qos_update_request(req, FREQ_QOS_MAX_DEFAULT_VALUE);
 
 		return;
 	}
@@ -652,7 +655,10 @@ static void release_limit_freq(enum ufc_ctrl_type type)
 		if (!req)
 			return;
 
-		freq_qos_update_request(req, PM_QOS_DEFAULT_VALUE);
+		if (type == PM_QOS_MAX_LIMIT)
+			freq_qos_update_request(req, FREQ_QOS_MAX_DEFAULT_VALUE);
+		else
+			freq_qos_update_request(req, FREQ_QOS_MIN_DEFAULT_VALUE);
 	}
 }
 
@@ -811,7 +817,7 @@ unsigned int get_cpufreq_max_limit(void)
 {
 	int i;
 
-	for (i = 0; i < ufc.num_of_domain; i++) {
+	for (i = ufc.num_of_domain - 1; i >= 0; i--) {
 		struct ufc_domain *dom = ufc.domain_list[i];
 		struct cpufreq_policy *policy;
 		unsigned int max_freq;
@@ -850,9 +856,9 @@ struct ufc_attr {
 static char *ctrl_type_name[] = {
 	"PM_QOS_MIN_LIMIT",
 	"PM_QOS_MAX_LIMIT",
-	"PM_QOS_MIN_LIMIT_WO_BOOST",
-	"PM_QOS_LITTLE_MAX_LIMIT",
 	"PM_QOS_OVER_LIMIT",
+	"PM_QOS_LITTLE_MAX_LIMIT",
+	"PM_QOS_MIN_LIMIT_WO_BOOST",
 };
 
 static ssize_t cpufreq_table_show(struct kobject *kobj, char *buf)
@@ -1204,10 +1210,10 @@ static void ufc_free_all(void)
 	/* Free min/max_limit_table */
 	for (i = 0; i < ufc.row_size; i++) {
 		kfree(ufc.min_limit_table[i]);
-		kfree(ufc.min_limit_table[i]);
+		kfree(ufc.max_limit_table[i]);
 	}
 	kfree(ufc.min_limit_table);
-	kfree(ufc.min_limit_table);
+	kfree(ufc.max_limit_table);
 
 	/* Free ufc_domain of domain_list */
 	for (i = 0; i < ufc.num_of_domain; i++) {
@@ -1247,18 +1253,32 @@ static unsigned int find_closest_freq(struct ufc_domain *dom, unsigned int freq,
 			}
 		return dom->min_freq;
 	}
-	return dom->min_freq;
 }
 
 static unsigned int **make_limit_table(unsigned int *raw_table, int size, int relation)
 {
 	struct ufc_domain *lit_dom = get_ufc_domain(0);
+	struct ufc_domain *fastest_dom = ufc.domain_list[ufc.num_of_domain - 1];
 	int orig_size = size / ufc.col_size;
 	int lit_size = lit_dom->table_size;
-	int i, j;
+	int i, j, start_idx;
+	unsigned int fastest_max_freq;
 	unsigned int **table;
 
-	ufc.row_size = orig_size + lit_size;
+	fastest_max_freq = fastest_dom->max_freq;
+
+	for (start_idx = 0; start_idx < orig_size; start_idx++) {
+		int pos = start_idx * ufc.col_size;
+
+		if (raw_table[pos] < fastest_max_freq && start_idx > 0) {
+			start_idx--;
+			break;
+		} else if (raw_table[pos] <= fastest_max_freq) {
+			break;
+		}
+	}
+
+	ufc.row_size = orig_size + lit_size - start_idx;
 
 	table = kcalloc(ufc.row_size, sizeof(u32 *), GFP_KERNEL);
 	if (!table)
@@ -1270,9 +1290,9 @@ static unsigned int **make_limit_table(unsigned int *raw_table, int size, int re
 			goto free;
 	}
 
-	for (i = 0; i < orig_size; i++) {
+	for (i = start_idx; i < orig_size; i++) {
 		int pos = i * ufc.col_size;
-		unsigned int *row = table[i];
+		unsigned int *row = table[i - start_idx];
 
 		row[0] = raw_table[pos];
 		for (j = 0; j < ufc.num_of_domain; j++) {
@@ -1363,15 +1383,15 @@ static int init_ufc_limit_table(struct device_node *dn)
 static void register_freq_qos(struct ufc_domain *dom, struct cpufreq_policy *policy)
 {
 	freq_qos_tracer_add_request_name("ufc_cpufreq_min_limit", &policy->constraints,
-			&dom->min_qos_req, FREQ_QOS_MIN, PM_QOS_DEFAULT_VALUE);
+			&dom->min_qos_req, FREQ_QOS_MIN, FREQ_QOS_MIN_DEFAULT_VALUE);
 	freq_qos_tracer_add_request_name("ufc_cpufreq_max_limit", &policy->constraints,
-			&dom->max_qos_req, FREQ_QOS_MAX, PM_QOS_DEFAULT_VALUE);
+			&dom->max_qos_req, FREQ_QOS_MAX, FREQ_QOS_MAX_DEFAULT_VALUE);
 	freq_qos_tracer_add_request_name("ufc_cpufreq_min_limit_wo_boost", &policy->constraints,
-			&dom->min_qos_wo_boost_req, FREQ_QOS_MIN, PM_QOS_DEFAULT_VALUE);
+			&dom->min_qos_wo_boost_req, FREQ_QOS_MIN, FREQ_QOS_MIN_DEFAULT_VALUE);
 
 	if (cpumask_test_cpu(0, &dom->cpus))
 		freq_qos_tracer_add_request_name("ufc_little_max_limit", &policy->constraints,
-				&dom->lit_max_qos_req, FREQ_QOS_MAX, PM_QOS_DEFAULT_VALUE);
+				&dom->lit_max_qos_req, FREQ_QOS_MAX, FREQ_QOS_MAX_DEFAULT_VALUE);
 }
 
 static int parse_ufc_domain(struct device_node *dn, struct ufc_domain *dom)
@@ -1458,6 +1478,12 @@ static int init_ufc_domain(struct device_node *dn)
 			return -EINVAL;
 		}
 
+		if (!cpumask_intersects(&dom->cpus, cpu_online_mask)) {
+			kfree(dom);
+			ufc.num_of_domain--;
+			continue;
+		}
+
 		policy = cpufreq_cpu_get(cpumask_first(&dom->cpus));
 		if (!policy) {
 			pr_err("%s: failed to get cpufreq policy\n", __func__);
@@ -1480,7 +1506,7 @@ static int init_ufc_domain(struct device_node *dn)
 	return 0;
 }
 
-static unsigned int parse_table_info(struct device_node *dn)
+static int parse_table_info(struct device_node *dn)
 {
 	int i;
 
@@ -1539,15 +1565,15 @@ static int exynos_ufc_init(struct platform_device *pdev)
 		return 0;
 	}
 
-	if (init_ufc_sysfs(&pdev->dev.kobj)) {
-		pr_info("exynos-ufc: Failed to init sysfs\n");
+	cpumask_setall(&ufc.active_cpus);
+	if (ecs_request_register("UFC", &ufc.active_cpus)) {
+		pr_info("exynos-ufc: Failed to register ecs\n");
 		ufc_free_all();
 		return 0;
 	}
 
-	cpumask_setall(&ufc.active_cpus);
-	if (ecs_request_register("UFC", &ufc.active_cpus)) {
-		pr_info("exynos-ufc: Failed to register ecs\n");
+	if (init_ufc_sysfs(&pdev->dev.kobj)) {
+		pr_info("exynos-ufc: Failed to init sysfs\n");
 		ufc_free_all();
 		return 0;
 	}
