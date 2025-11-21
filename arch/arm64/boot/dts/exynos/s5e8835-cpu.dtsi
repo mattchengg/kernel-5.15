@@ -1,3 +1,5 @@
+#include <linux/kconfig.h>
+
 /{
     exynos-dsufreq {
         compatible = "samsung,exynos-dsufreq";
@@ -21,7 +23,12 @@
                 1536000
                 1632000
                 1728000
-                1794000 >;
+                1794000
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC)
+                1898000
+                2002000
+#endif
+        >;
     };
 
     exynos-ufcc {
@@ -65,6 +72,11 @@
                     relation = <1>;
                     /*       VFREQ   BIG     LIT     EMSTUNE STRICT */
                     table = <
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC)
+                             2704000 2704000 2002000 0       0
+                             2592000 2592000 2002000 0       0
+                             2496000 2496000 2002000 0       0
+#endif
                              2400000 2400000 2002000 0       0
                              2304000 2304000 2002000 0       0
                              2208000 2208000 2002000 0       0
@@ -92,6 +104,11 @@
                     relation = <0>;
                     /*       VFREQ   BIG     LIT     EMSTUNE STRICT */
                     table = <
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC)
+                             2704000 2704000 2002000 2       1
+                             2592000 2592000 2002000 2       1
+                             2496000 2496000 2002000 2       1
+#endif
                              2400000 2400000 2002000 2       1
                              2304000 2304000 2002000 2       1
                              2208000 2208000 1536000 1       1
@@ -119,6 +136,11 @@
                     relation = <0>; /* MIN_LIMIT */
                     /* VFREQ   BIG     LIT     EMSTUNE STRICT */
                     table = <
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC)
+                             2704000 2016000 1632000 0       0
+                             2592000 2016000 1632000 0       0
+                             2496000 2016000 1632000 0       0
+#endif
                              2400000 1824000 1632000 0       0
                              2304000 1824000 1632000 0       0
                              2208000 1824000 1248000 0       0

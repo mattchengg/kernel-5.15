@@ -407,6 +407,24 @@ struct ect_info
 	int block_precedence;
 };
 
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC) || IS_ENABLED(CONFIG_SOC_S5E8835_GPU_OC)
+struct ect_custom {
+	const char *tbl_name;
+	unsigned int col_max;
+	unsigned int freq_max;
+};
+
+static struct ect_custom ect_custom_max_freqs[] = {
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC)
+	{ .tbl_name = "MCPUCL1", .col_max = 3, .freq_max = 2704 }, // BIG
+	{ .tbl_name = "MDSU", .col_max = 3, .freq_max = 2002 }, // DSU
+#endif
+#if IS_ENABLED(CONFIG_SOC_S5E8835_GPU_OC)
+	{ .tbl_name = "MG3D", .col_max = 3, .freq_max = 1053 }, // G3D
+#endif
+};
+#endif
+
 #if defined(CONFIG_ECT) || defined(CONFIG_ECT_MODULE)
 void ect_init(phys_addr_t address, phys_addr_t size);
 int ect_parse_binary_header(void);

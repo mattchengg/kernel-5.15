@@ -2506,6 +2506,33 @@ struct ect_new_timing_param_size *ect_new_timing_param_get_key(void *block, unsi
 	return NULL;
 }
 #endif
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC) || IS_ENABLED(CONFIG_SOC_S5E8835_GPU_OC)
+int set_ect_custom_max_freq(void)
+{
+	struct ect_info *gen_param_info;
+	int i, j;
+
+	gen_param_info = ect_get_info(BLOCK_GEN_PARAM);
+
+	for (i = 0; i < ARRAY_SIZE(ect_custom_max_freqs); i++) {
+		struct ect_custom *custom = &ect_custom_max_freqs[i];
+		char tbl_name[16];
+		struct ect_gen_param_table *p_tbl;
+
+		snprintf(tbl_name, sizeof(tbl_name), "%s", custom->tbl_name);
+
+		p_tbl = ect_gen_param_get_table(gen_param_info->block_handle, tbl_name);
+		if (p_tbl) {
+			for (j = 0; j < p_tbl->num_of_row; j++) {
+				p_tbl->parameter[j * p_tbl->num_of_col + custom->col_max] = custom->freq_max;
+			}
+		}
+	}
+
+	return 0;
+}
+#endif
+
 int ect_parse_binary_header(void)
 {
 	int ret = 0;
@@ -2554,6 +2581,12 @@ int ect_parse_binary_header(void)
 			ect_list[j].block_precedence = i;
 		}
 	}
+
+#if IS_ENABLED(CONFIG_SOC_S5E8835_CPU_OC) || IS_ENABLED(CONFIG_SOC_S5E8835_GPU_OC)
+	if (set_ect_custom_max_freq() != 0) {
+		pr_warn("%s: Failed to set custom max freq!\n", __func__);
+	}
+#endif
 
 	ect_header_info.block_handle = ect_header;
 

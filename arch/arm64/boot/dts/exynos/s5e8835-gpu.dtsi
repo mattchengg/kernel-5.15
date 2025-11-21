@@ -1,0 +1,66 @@
+#include <linux/kconfig.h>
+
+/{
+    mali@10300000 {
+       compatible = "arm,mali";
+       reg = <0 271581184 20480>;
+       sysreg_g3d = <270663680>;
+       interrupts = <0 285 4>,
+                    <0 286 4>,
+                    <0 284 4>;
+       interrupt-names = "JOB", "MMU", "GPU";
+       clock-names = "gpu_clock";
+       clocks = <87 2200>;
+       g3d_cmu_cal_id = <184811528>;
+       power-domains = <47>;
+       g3d_genpd_name = "pd_g3d";
+       #cooling-cells = <2>;
+       governor = "interactive";
+       interactive_info = <650000 94 0>;
+#if IS_ENABLED(CONFIG_SOC_S5E8835_GPU_OC)
+       gpu_dvfs_table_size = <9 8>; /* <row col> */
+       /* 8 columns      freq   down   up  stay      mif   little middle    big */
+       gpu_dvfs_table = <1053000  78   100    5  2093000  1152000      0      0
+                         949000   78   98     5  1794000  1069000      0      0
+                         845000   78   95     5  1541000  1069000      0      0
+                         754000   78   95     5  1352000  1069000      0      0
+                         650000   78   95     3  1352000  1069000      0      0
+                         552000   78   95     1  1014000  1069000      0      0
+                         455000   78   90     1  1014000        0      0      0
+                         351000   78   85     1   845000        0      0      0
+                         221000    0   85     1   676000        0      0      0>;
+       gpu_max_clock = <1053000>;
+       gpu_min_clock = <221000>;
+#else
+       gpu_dvfs_table_size = <8 8>; /* <row col> */
+       /* 8 columns      freq   down   up  stay      mif   little middle    big */
+       gpu_dvfs_table = <949000   78  100     5  1794000  1069000      0      0
+                         845000   78   95     5  1541000  1069000      0      0
+                         754000   78   95     5  1352000  1069000      0      0
+                         650000   78   95     3  1352000  1069000      0      0
+                         552000   78   95     1  1014000  1069000      0      0
+                         455000   78   90     1  1014000        0      0      0
+                         351000   78   85     1   845000        0      0      0
+                         221000    0   85     1   676000        0      0      0>;
+       gpu_max_clock = <949000>;
+       gpu_min_clock = <221000>;
+#endif
+       gpu_pmqos_cpu_cluster_num = <3>;
+       gpu_pmu_status_reg_offset = <10372>;
+       gpu_pmu_status_local_pwr_mask = <1>;
+       gpu_dvfs_bl_config_clock = <221000>;
+       gpu_power_coeff = <625>;
+       ect-coeff-index = <2>;
+       gpu_dvfs_time_interval = <5>;
+       gpu_dvs = <0>;
+       gpu_inter_frame_pm = <1>;
+       gpu_inter_frame_dynamic_util = <50>;
+       gpu_inter_frame_dynamic_freq = <767000>;
+       gpu_runtime_pm_delay_time = <50>;
+       gpu_dvfs_polling_time = <30>;
+       gpu_debug_level = <4>; /*DEBUG(1) INFO(2) WARNING(3) ERROR(4)*/
+       gpu_mo_min_clock = <650000>;
+       gpu_bts_support = <1>;
+       phandle = <267>;
+   };
+};
