@@ -56,8 +56,6 @@ extern uint cpu_util_avgs[VENDOR_NR_CPUS];
 extern int xperf_prof_init(struct platform_device *pdev, struct kobject *kobj);
 extern int xperf_core_init(struct kobject *kobj);
 extern int xperf_memcpy_init(struct platform_device *pdev, struct kobject *kobj);
-extern int xperf_gmc_init(struct platform_device *pdev, struct kobject *kobj);
-extern int xperf_pago_init(struct platform_device *pdev, struct kobject *kobj);
 
 extern int get_cl_idx(int cpu);
 extern int get_f_idx(int cl_idx, int freq);

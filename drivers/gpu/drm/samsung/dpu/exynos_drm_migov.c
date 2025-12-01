@@ -12,7 +12,6 @@
 
 #include <exynos_drm_migov.h>
 #include <soc/samsung/exynos-migov.h>
-#include <soc/samsung/xperf.h>
 #include <exynos_drm_crtc.h>
 #include <linux/ems.h>
 
@@ -124,7 +123,6 @@ struct exynos_migov *exynos_migov_register(struct exynos_drm_crtc *exynos_crtc)
 			exynos_migov_register_fence_cnt(get_ems_fence_cnt);
 	}
 
-	exynos_gmc_register_frame_cnt(get_ems_frame_cnt);
 	ems_register_fence_cnt(get_ems_fence_cnt);
 
 	pr_info("%s[%d]: migov supported\n", crtc->name, crtc->index);

@@ -23,8 +23,6 @@ static int xperf_probe(struct platform_device *pdev)
 	xperf_prof_init(pdev, kobj);
 	xperf_core_init(kobj);
 	xperf_memcpy_init(pdev, kobj);
-	xperf_gmc_init(pdev, kobj);
-	xperf_pago_init(pdev, kobj);
 
 	pr_info("[%s] Exynos Perf initialized\n", prefix);
 
