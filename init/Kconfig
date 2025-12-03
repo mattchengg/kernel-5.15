@@ -1271,15 +1271,6 @@ config SCHED_EMS
 
 	  If unsure, say N.
 
-config SCHED_EMS_TUNE
-	bool "Tuner for Exynos Mobile Scheduler"
-	depends on SCHED_EMS
-	default n
-	help
-	  This option supports tuner for Exynos mobile scheduler.
-
-	  If unsure, say N.
-
 config MHDVFS
 	bool "Memory Hieararchy Dynamic Voltage and Frequency Scaling"
 	depends on SCHED_EMS

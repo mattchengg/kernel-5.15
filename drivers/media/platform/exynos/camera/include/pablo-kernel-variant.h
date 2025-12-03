@@ -27,7 +27,7 @@
 #include <linux/panic_notifier.h>
 #endif
 
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 #include <linux/ems.h>
 #endif
 

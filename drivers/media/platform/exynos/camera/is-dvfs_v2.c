@@ -522,7 +522,7 @@ int is_set_dvfs_m2m(struct is_device_ischain *device, int scenario_id)
 	const char *cpus;
 	struct is_resourcemgr *resourcemgr;
 	struct is_dvfs_ctrl *dvfs_ctrl;
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 	struct emstune_mode_request *emstune_req;
 #endif
 
@@ -533,7 +533,7 @@ int is_set_dvfs_m2m(struct is_device_ischain *device, int scenario_id)
 
 	/* Others */
 	hpg_qos = is_get_qos_lv(core, IS_DVFS_HPG, scenario_id);
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 	/* hpg_qos : number of minimum online CPU */
 	if (hpg_qos > 0 && device && (dvfs_ctrl->cur_hpg_qos != hpg_qos)
 		&& !test_bit(IS_ISCHAIN_REPROCESSING, &device->state)) {

@@ -1194,7 +1194,7 @@ static void is_resourcemgr_c2_disable_work(struct work_struct *data)
 }
 #endif
 
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 static struct emstune_mode_request emstune_req;
 struct emstune_mode_request *is_get_emstune_req(void)
 {
@@ -1426,7 +1426,7 @@ static void is_resource_reset(struct is_resourcemgr *resourcemgr)
 	resourcemgr->shot_timeout = SHOT_TIMEOUT;
 	resourcemgr->shot_timeout_tick = 0;
 
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 	emstune_add_request(&emstune_req);
 #endif
 
@@ -1493,7 +1493,7 @@ static void is_resource_clear(struct is_resourcemgr *resourcemgr)
 
 	is_mem_check_stats(&resourcemgr->mem);
 
-#if IS_ENABLED(CONFIG_SCHED_EMS_TUNE)
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 	if (resourcemgr->dvfs_ctrl.cur_hmp_bst)
 		emstune_boost(&emstune_req, 0);
 
