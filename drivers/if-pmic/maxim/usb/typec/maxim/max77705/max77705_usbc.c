@@ -43,12 +43,7 @@
 #if defined(CONFIG_USB_AUDIO_ENHANCED_DETECT_TIME)
 #if defined(CONFIG_SCHED_EMS)
 #include <linux/ems.h>
-#if defined(CONFIG_SCHED_EMS_TUNE)
 static struct emstune_mode_request emstune_req;
-#else
-static struct gb_qos_request gb_req = {
-	.name = "argos_global_boost",
-};
 #endif
 #endif
 #endif
@@ -3184,11 +3179,7 @@ void max77705_clk_booster_set(void *data, int on)
 				PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE);
 		usbpd_data->set_booster = true;
 #if defined(CONFIG_SCHED_EMS)
-#if defined(CONFIG_SCHED_EMS_TUNE)
 		emstune_boost(&emstune_req, 1);
-#else
-		gb_qos_update_request(&gb_req, 100);
-#endif
 #endif
 #endif
 		schedule_delayed_work(&usbpd_data->acc_booster_off_work,
@@ -3217,11 +3208,7 @@ static void max77705_clk_booster_off(struct work_struct *wk)
 	msg_maxim("[PDIC Booster]");
 #ifndef CONFIG_GKI_USB
 #if defined(CONFIG_SCHED_EMS)
-#if defined(CONFIG_SCHED_EMS_TUNE)
 	emstune_boost(&emstune_req, 0);
-#else		
-	gb_qos_update_request(&gb_req, 0);
-#endif
 #endif
 #endif
 	remove_qos(&usbpd_data->mif_qos);
