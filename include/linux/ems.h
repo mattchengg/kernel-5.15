@@ -97,6 +97,7 @@ static char *ego_cpufreq_reason_name[] = {
 #ifdef CONFIG_SCHED_EMS_CORE_SELECT
 extern int emstune_get_cur_mode(void);
 extern int emstune_get_cur_level(void);
+extern void ems_register_fence_cnt(void (*fn)(u64 *cnt, ktime_t *time));
 
 #define emstune_add_request(req)	do {				\
 	__emstune_add_request(req, (char *)__func__, __LINE__);	\
@@ -124,6 +125,7 @@ static inline void stt_release_gmc_boost(void) { };
 #define emstune_add_request(req)	do { } while(0);
 static inline int emstune_get_cur_mode(void) { return -1; };
 static inline int emstune_get_cur_level(void) { return -1; };
+static inline void ems_register_frame_cnt(void (*fn)(u64 *cnt, ktime_t *time)) { };
 
 static inline void __emstune_add_request(struct emstune_mode_request *req, char *func, unsigned int line) { };
 static inline void emstune_update_request(struct emstune_mode_request *req, s32 new_value) { };
