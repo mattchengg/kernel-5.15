@@ -1271,6 +1271,69 @@ config SCHED_EMS
 
 	  If unsure, say N.
 
+config SCHED_EMS_IDLE_SELECT
+	bool "Idle selection for Exynos Mobile Scheduler"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports idle selection for Exynos mobile scheduler.
+
+	  If unsure, say N.
+
+config SCHED_EMS_FREQ_SELECT
+	bool "Freq selction for Exynos Mobile Scheduler"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports frequency selection for Exynos mobile scheduler.
+
+	  If unsure, say N.
+
+config SCHED_EMS_PAGO
+	bool "PAGO for Exynos Mobile Scheduler"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports PAGO for Exynos mobile scheduler.
+
+	  If unsure, say N.
+
+config SCHED_EMS_DSU_FREQ_SELECT
+	bool "DSU frequency selction for Exynos Mobile Scheduler"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports dsu frequency selection for Exynos mobile scheduler.
+
+	  If unsure, say N.
+
+config SCHED_EMS_CORE_SELECT
+	bool "Core selection for Exynos Mobile Scheduler"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports core selection for Exynos mobile scheduler.
+
+	  If unsure, say N.
+
+config SCHED_EMS_DEBUG
+	bool "Exynos Mobile Scheduler Debug"
+	depends on SCHED_EMS
+	default n
+	help
+	This option supports exynos mobile scheduler debug.
+
+	If unsure, say N.
+
+config SCHED_EMS_TASK_GROUP
+	bool "Exynos Mobile Scheduler Task Group"
+	depends on SCHED_EMS
+	default n
+	help
+	  This option supports exynos mobile scheduler task group.
+
+	  If unsure, say N.
+
 config MHDVFS
 	bool "Memory Hieararchy Dynamic Voltage and Frequency Scaling"
 	depends on SCHED_EMS
