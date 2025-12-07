@@ -8210,7 +8210,7 @@
 				mem-id = <0x01>;
 				dma-heap;
 				heap-name = "camera-uncached";
-				size = "\t`", "";
+				size = <0x9600000>;
 			};
 
 			log {
