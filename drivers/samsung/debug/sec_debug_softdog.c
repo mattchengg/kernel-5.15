@@ -93,7 +93,7 @@ void secdbg_softdog_show_info(void)
 		pr_auto(ASL5, "[SOFTDOG] %s:%d %c(%u) exec:%lluns\n",
 			p->comm, p->pid, get_state(p), READ_ONCE(p->__state), p->se.exec_start);
 
-		if (task_running(task_rq(p), p)) {
+		if (task_on_cpu(task_rq(p), p)) {
 			INIT_CSD(&csd, show_callstack, NULL);
 			smp_call_function_single_async(task_cpu(p), &csd);
 		} else {
