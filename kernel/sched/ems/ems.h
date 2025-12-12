@@ -17,10 +17,10 @@
 #include <linux/ems.h>
 #include <linux/platform_device.h>
 #include <linux/sched/signal.h>
-#include <linux/perf/arm_pmuv3.h>
+#include <asm/perf_event.h>
 
-#include <drivers/android/binder_internal.h>
-#include <kernel/sched/sched.h>
+#include "../../../drivers/android/binder_internal.h"
+#include "../sched.h"
 
 /*
  * Maximum supported-by-vendor processors.  Setting this smaller saves quite a
@@ -542,12 +542,6 @@ struct emstune_dslt {
 	int running_sensitivity[CGROUP_COUNT];
 };
 
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-struct emstune_dsu_slice_down {
-	int enabled;
-};
-#endif
-
 struct emstune_set {
 	int					mode;
 	int					level;
@@ -572,9 +566,6 @@ struct emstune_set {
 	struct emstune_energy_table		et;
 	struct emstune_util_est			util_est;
 	struct emstune_dslt			dslt;
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	struct emstune_dsu_slice_down		dsu_slice_down;
-#endif
 
 	int					cpu_dsu_table_index;
 };
@@ -1160,6 +1151,7 @@ extern unsigned long et_cur_cap(int cpu);
 extern unsigned long et_max_cap(int cpu);
 extern unsigned long et_freq_to_cap(int cpu, unsigned long freq);
 extern unsigned long et_freq_to_dpower(int cpu, unsigned long freq);
+extern unsigned long et_freq_to_spower(int cpu, unsigned long freq);
 extern unsigned long et_dpower_to_cap(int cpu, unsigned long dpower);
 extern unsigned long et_dpower_to_freq(int cpu, unsigned long dpower);
 extern void et_update_freq(int cpu, unsigned long freq);
@@ -1356,9 +1348,5 @@ static inline bool lb_migrate_running_task(int src_cpu, int dst_cpu, struct task
 
 /* perf events */
 extern int exynos_perf_events_init(struct kobject *ems_kobj);
-
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-extern void dsu_slice_down_init(void);
-#endif
 
 #endif	/* ENDIF _KERNEL_SCHED_EMS_H */

@@ -9,6 +9,7 @@
 
 #include <trace/events/sched.h>
 #include <trace/events/ems_debug.h>
+#include <trace/events/power.h>
 #include <trace/hooks/sched.h>
 #include <trace/hooks/cpuidle.h>
 #include <trace/hooks/binder.h>
@@ -301,7 +302,7 @@ ems_hook_schedule(void *data, struct task_struct *prev,
 
 void ems_hook_check_preempt_wakeup(void *data, struct rq *rq, struct task_struct *p,
 		bool *preempt, bool *nopreempt, int wake_flags, struct sched_entity *se,
-		struct sched_entity *pse, int next_buddy_marked)
+		struct sched_entity *pse, int next_buddy_marked, unsigned int granularity)
 {
 	tex_check_preempt_wakeup(rq, p, preempt, nopreempt);
 }

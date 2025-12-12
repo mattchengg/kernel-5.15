@@ -16,9 +16,7 @@
 
 #include <trace/events/ems.h>
 #include <trace/events/ems_debug.h>
-#include "../../../../../../common/kernel/cgroup/cgroup-internal.h"
-
-#include <kunit/visibility.h>
+#include "../../cgroup/cgroup-internal.h"
 
 /******************************************************************************
  * data structure and API                                                     *
@@ -50,11 +48,10 @@ struct boost_groups {
 
 static raw_spinlock_t __percpu *lock;
 
-VISIBLE_IF_KUNIT inline bool freqboost_boost_timeout(u64 now, u64 ts, u64 timeout)
+static inline bool freqboost_boost_timeout(u64 now, u64 ts, u64 timeout)
 {
 	return ((now - ts) > timeout);
 }
-EXPORT_SYMBOL_IF_KUNIT(freqboost_boost_timeout);
 
 static inline bool freqboost_boost_group_active(int idx, struct boost_groups *bg, u64 now)
 {

@@ -24,6 +24,7 @@
 #include <linux/pm_opp.h>
 #include <linux/sched.h>
 #include <linux/ems.h>
+#include <linux/notifier.h>
 
 #include <soc/samsung/exynos-cpupm.h>
 #include <soc/samsung/exynos-ufcc.h>
@@ -409,6 +410,7 @@ struct ufc_domain {
 	unsigned int		*freq_table;
 
 	bool			allow_disable_cpus;
+	bool			disabled;
 
 	struct freq_qos_request	min_qos_req;
 	struct freq_qos_request	max_qos_req;
@@ -435,15 +437,19 @@ static struct exynos_ufc {
 
 	unsigned int		**max_limit_table;
 	unsigned int		**min_limit_table;
+	unsigned int		**low_freq_table;
 
 	unsigned int		emstune_index;
 	unsigned int		strict_index;
 
 	int			min_limit_wo_boost;
 
-	bool			strict_enabled;
+	bool			strict;
+	bool			emstune_strict;
 
 	ktime_t			last_update_time;
+
+	struct work_struct  work;
 
 	struct cpumask		active_cpus;
 	struct mutex		lock;
@@ -488,7 +494,8 @@ static void disable_domain_cpus(struct ufc_domain *dom)
 		return;
 
 	cpumask_andnot(&ufc.active_cpus, &ufc.active_cpus, &dom->cpus);
-	ecs_request("UFC", &ufc.active_cpus);
+	dom->disabled = true;
+	ecs_request("UFC", &ufc.active_cpus, ECS_MAX);
 }
 
 static void enable_domain_cpus(struct ufc_domain *dom)
@@ -497,7 +504,8 @@ static void enable_domain_cpus(struct ufc_domain *dom)
 		return;
 
 	cpumask_or(&ufc.active_cpus, &ufc.active_cpus, &dom->cpus);
-	ecs_request("UFC", &ufc.active_cpus);
+	dom->disabled = false;
+	ecs_request("UFC", &ufc.active_cpus, ECS_MAX);
 }
 
 static struct freq_qos_request *get_freq_qos_req(struct ufc_domain *dom, int ctrl_type)
@@ -525,6 +533,11 @@ static int get_prio_freq(enum ufc_ctrl_type type)
 		return PM_QOS_DEFAULT_VALUE;
 
 	return req->prio_freq;
+}
+
+static bool ufc_strict_enabled(void)
+{
+	return ufc.strict || ufc.emstune_strict;
 }
 
 static int update_lowest_prio_freq(enum ufc_ctrl_type type)
@@ -614,7 +627,7 @@ static void update_limit_stat(void)
 		}
 	}
 
-	if (!ufc.strict_enabled ||
+	if (!ufc_strict_enabled() ||
 			is_released_freq(get_prio_freq(PM_QOS_MAX_LIMIT)) ||
 			is_released_freq(get_prio_freq(PM_QOS_OVER_LIMIT)))
 		return;
@@ -644,6 +657,9 @@ static void release_limit_freq(enum ufc_ctrl_type type)
 		if (!req)
 			return;
 
+		if (dom->disabled)
+			enable_domain_cpus(dom);
+
 		freq_qos_update_request(req, FREQ_QOS_MAX_DEFAULT_VALUE);
 
 		return;
@@ -655,10 +671,16 @@ static void release_limit_freq(enum ufc_ctrl_type type)
 		if (!req)
 			return;
 
-		if (type == PM_QOS_MAX_LIMIT)
+		if (type == PM_QOS_MAX_LIMIT) {
 			freq_qos_update_request(req, FREQ_QOS_MAX_DEFAULT_VALUE);
-		else
+			if (dom->disabled)
+				enable_domain_cpus(dom);
+		} else {
+			if (type == PM_QOS_MIN_LIMIT && ufc.low_freq_table)
+				ego_reset_adaptive_freq(cpumask_first(&dom->cpus), true);
+
 			freq_qos_update_request(req, FREQ_QOS_MIN_DEFAULT_VALUE);
+		}
 	}
 }
 
@@ -668,7 +690,7 @@ static int determine_max_limit(void)
 	int over_limit = update_lowest_prio_freq(PM_QOS_OVER_LIMIT);
 
 	/* Determine the final max limit */
-	if (!ufc.strict_enabled)
+	if (!ufc_strict_enabled())
 		return max_limit;
 
 	/* if max_limit is released, over_limit is also ignored */
@@ -730,7 +752,7 @@ static void update_little_max_limit(void)
 static void update_min_limit(void)
 {
 	enum ufc_ctrl_type type = PM_QOS_MIN_LIMIT;
-	bool prev_strict = ufc.strict_enabled;
+	bool prev_strict = ufc_strict_enabled();
 	int freq, index, emstune_level;
 	int i;
 
@@ -739,32 +761,43 @@ static void update_min_limit(void)
 	if (is_released_freq(freq)) {
 		release_limit_freq(type);
 		emstune_level = 0;
-		ufc.strict_enabled = false;
+		ufc.strict = false;
 	} else {
-		unsigned int *row;
+		unsigned int *min_limit, *low_freq = NULL;
 
 		index = find_cloest_vfreq_index(ufc.min_limit_table, freq, CPUFREQ_RELATION_L);
-		row = ufc.min_limit_table[index];
+		min_limit = ufc.min_limit_table[index];
+		if (ufc.low_freq_table)
+			low_freq = ufc.low_freq_table[index];
 
 		for (i = 0; i < ufc.num_of_domain; i++) {
 			struct ufc_domain *dom = ufc.domain_list[i];
 			struct freq_qos_request *req = get_freq_qos_req(dom, type);
 
-			if (row[dom->index])
-				freq_qos_update_request(req, row[dom->index]);
-			else
+			if (low_freq && low_freq[dom->index] != dom->min_freq) {
 				freq_qos_update_request(req, dom->min_freq);
+				ego_set_adaptive_freq(cpumask_first(&dom->cpus),
+						low_freq[dom->index], min_limit[dom->index]);
+			} else {
+				ego_reset_adaptive_freq(cpumask_first(&dom->cpus), false);
+
+				if (min_limit[dom->index])
+					freq_qos_update_request(req, min_limit[dom->index]);
+				else
+					freq_qos_update_request(req, dom->min_freq);
+			}
 		}
-		emstune_level = row[ufc.emstune_index];
-		ufc.strict_enabled = row[ufc.strict_index];
+		emstune_level = min_limit[ufc.emstune_index];
+		ufc.strict = min_limit[ufc.strict_index];
 	}
 
 	emstune_update_request(&ufc_emstune_req, emstune_level);
 	update_ufcc_request(emstune_level);
 
-	if (prev_strict != ufc.strict_enabled)
+	if (prev_strict != ufc_strict_enabled())
 		update_max_limit();
 }
+
 
 static void update_min_limit_wo_boost(void)
 {
@@ -840,6 +873,40 @@ unsigned int get_cpufreq_max_limit(void)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(get_cpufreq_max_limit);
+
+/*********************************************************************/
+/*  Notifier Handler												 */
+/*********************************************************************/
+static void ufc_update_max_work(struct work_struct *work)
+{
+	mutex_lock(&ufc.lock);
+
+	update_limit_stat();
+	update_max_limit();
+
+	mutex_unlock(&ufc.lock);
+}
+
+static int ufc_emstune_notifier_call(struct notifier_block *nb, unsigned long val, void *v)
+{
+	bool strict, prev = ufc_strict_enabled();
+
+	strict = emstune_get_cur_level();
+
+	if (ufc.emstune_strict == strict)
+		return NOTIFY_OK;
+
+	ufc.emstune_strict = strict;
+
+	if (prev != ufc_strict_enabled())
+		schedule_work(&ufc.work);
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block ufc_emstune_notifier = {
+	.notifier_call = ufc_emstune_notifier_call,
+};
 
 /*********************************************************************/
 /*  Sysfs funcions - User Frequency Control                          */
@@ -1004,6 +1071,27 @@ static ssize_t debug_min_table_show(struct kobject *kobj, char *buf)
 }
 static UFC_ATTR_RO(debug_min_table);
 
+static ssize_t default_low_freq_show(struct kobject *kobj, char *buf)
+{
+	int count = 0;
+	int col, row;
+
+	for (col = 0; col < ufc.col_size; col++)
+		count += snprintf(buf + count, PAGE_SIZE - count, "%9s",
+				ufc.col_list[col]);
+	count += snprintf(buf + count, PAGE_SIZE - count,"\n");
+
+	for (row = 0; row < ufc.row_size; row++) {
+		for (col = 0; col < ufc.col_size; col++)
+			count += snprintf(buf + count, PAGE_SIZE - count, "%9d",
+					ufc.low_freq_table[row][col]);
+		count += snprintf(buf + count, PAGE_SIZE - count,"\n");
+	}
+
+	return count;
+}
+static UFC_ATTR_RO(default_low_freq);
+
 static ssize_t debug_id_show(struct kobject *kobj, char *buf)
 {
 	int count = 0;
@@ -1160,6 +1248,14 @@ static int init_ufc_sysfs(struct kobject *kobj)
 	if (ret) {
 		pr_info("Failed to add ufc sysfs\n");
 		return ret;
+	}
+
+	if (ufc.low_freq_table) {
+		ret = sysfs_create_file(&ufc.kobj, &attr_default_low_freq.attr);
+		if (ret) {
+			pr_info("Failed to add default_low_freq sysfs\n");
+			return ret;
+		}
 	}
 
 	/* /sys/devices/system/cpu/cpufreq_limit */
@@ -1323,6 +1419,23 @@ free:
 	return NULL;
 }
 
+static void clear_little_range_table(unsigned int **table)
+{
+	struct ufc_domain *lit_dom = get_ufc_domain(0);
+	int lit_size = lit_dom->table_size;
+	int i, j;
+
+	for (i = 0; i < lit_size; i++) {
+		unsigned int *row = table[(ufc.row_size - 1) - i];
+
+		for (j = 0; j < ufc.num_of_domain; j++) {
+			struct ufc_domain *dom = ufc.domain_list[j];
+
+			row[dom->index] = dom->min_freq;
+		}
+	}
+}
+
 static unsigned int **parse_ufc_limit_table(struct device_node *dn)
 {
 	unsigned int **table, *raw_table;
@@ -1376,6 +1489,17 @@ static int init_ufc_limit_table(struct device_node *dn)
 	ufc.max_limit_table = parse_ufc_limit_table(child);
 	if (!ufc.max_limit_table)
 		return -EINVAL;
+
+	/* Parse default-low-freq table*/
+	child = of_get_child_by_name(dn, "default-low-freq");
+	if (!child)
+		return 0;
+
+	ufc.low_freq_table = parse_ufc_limit_table(child);
+	if (!ufc.low_freq_table)
+		return -EINVAL;
+
+	clear_little_range_table(ufc.low_freq_table);
 
 	return 0;
 }
@@ -1566,7 +1690,7 @@ static int exynos_ufc_init(struct platform_device *pdev)
 	}
 
 	cpumask_setall(&ufc.active_cpus);
-	if (ecs_request_register("UFC", &ufc.active_cpus)) {
+	if (ecs_request_register("UFC", &ufc.active_cpus, ECS_MAX)) {
 		pr_info("exynos-ufc: Failed to register ecs\n");
 		ufc_free_all();
 		return 0;
@@ -1579,6 +1703,9 @@ static int exynos_ufc_init(struct platform_device *pdev)
 	}
 
 	init_ufc_request();
+
+	INIT_WORK(&ufc.work, ufc_update_max_work);
+	emstune_register_notifier(&ufc_emstune_notifier);
 
 	pr_info("exynos-ufc: Complete UFC driver initialization\n");
 

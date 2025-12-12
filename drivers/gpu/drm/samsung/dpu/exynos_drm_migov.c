@@ -123,8 +123,6 @@ struct exynos_migov *exynos_migov_register(struct exynos_drm_crtc *exynos_crtc)
 			exynos_migov_register_fence_cnt(get_ems_fence_cnt);
 	}
 
-	ems_register_fence_cnt(get_ems_fence_cnt);
-
 	pr_info("%s[%d]: migov supported\n", crtc->name, crtc->index);
 
 	return migov;

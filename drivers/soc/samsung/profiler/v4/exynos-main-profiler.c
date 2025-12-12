@@ -1449,15 +1449,15 @@ static int migov_mode_update_callback(struct notifier_block *nb,
 
 	if (!migov.game_mode) {
 		/* start migov with game when */
-		if ((set->type & EMSTUNE_MODE_TYPE_GAME) &&
-				!(set->type & EMSTUNE_BOOST_TYPE_EXTREME)) {
+		if ((set->type & EMSTUNE_GAME_MODE) &&
+				!(set->type & EMSTUNE_BOOST_LEVEL)) {
 			migov.game_mode = true;
 			wakeup_polling_task();
 		}
 	} else {
 		/* finish migov */
-		if (!(set->type & EMSTUNE_MODE_TYPE_GAME) ||
-				(set->type & EMSTUNE_BOOST_TYPE_EXTREME)) {
+		if (!(set->type & EMSTUNE_GAME_MODE) ||
+				(set->type & EMSTUNE_BOOST_LEVEL)) {
 			migov.game_mode = false;
 			wakeup_polling_task();
 		}

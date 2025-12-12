@@ -42,6 +42,17 @@ static LIST_HEAD(domains);
 /******************************************************************************
  *                              HELPER FUNCTION                               *
  ******************************************************************************/
+static struct cpufreq_policy *get_cpufreq_policy(struct exynos_cpufreq_domain *domain)
+{
+	struct cpumask active_cpus;
+
+	cpumask_and(&active_cpus, cpu_active_mask, &domain->cpus);
+	if (cpumask_empty(&active_cpus))
+		return NULL;
+
+	return cpufreq_cpu_get(cpumask_any(&active_cpus));
+}
+
 static struct exynos_cpufreq_domain *find_domain(unsigned int cpu)
 {
 	struct exynos_cpufreq_domain *domain;
@@ -132,6 +143,11 @@ static int scale_slowpath(struct exynos_cpufreq_domain *domain,
 
 	pr_debug("CPUFREQ domain%d frequency change %u kHz -> %u kHz\n",
 			domain->id, domain->old, target_freq);
+
+#if IS_ENABLED(CONFIG_SCHED_EMS)
+	et_arch_set_freq_scale(policy->related_cpus, target_freq, policy->cpuinfo.max_freq, NULL);
+	mlt_cpufreq_transition_notifier(domain->id, target_freq);
+#endif
 
 	domain->old = target_freq;
 
@@ -982,6 +998,7 @@ static int exynos_cpufreq_fast_switch_notifier(struct notifier_block *notifier,
 				       unsigned long domain_id, void *data)
 {
 	struct exynos_cpufreq_domain *domain = NULL;
+	struct cpufreq_policy *policy = NULL;
 	unsigned int freq = ((struct exynos_dm_fast_switch_notify_data *)data)->freq;
 
 	list_for_each_entry(domain, &domains, list)
@@ -994,8 +1011,17 @@ static int exynos_cpufreq_fast_switch_notifier(struct notifier_block *notifier,
 	if (!domain->fast_switch)
 		return NOTIFY_BAD;
 
+	policy = get_cpufreq_policy(domain);
+	if (unlikely(!policy))
+		return NOTIFY_DONE;
+
 	debug_post_scale(domain, freq, 0);
 	domain->old = freq;
+
+#if IS_ENABLED(CONFIG_SCHED_EMS)
+	et_arch_set_freq_scale(policy->related_cpus, freq, policy->cpuinfo.max_freq, NULL);
+	mlt_cpufreq_transition_notifier(domain->id, freq);
+#endif
 
 	return NOTIFY_OK;
 }
@@ -1577,5 +1603,6 @@ static struct platform_driver exynos_cpufreq_driver = {
 
 module_platform_driver(exynos_cpufreq_driver);
 
+MODULE_SOFTDEP("pre: ems");
 MODULE_DESCRIPTION("Exynos ACME");
 MODULE_LICENSE("GPL");

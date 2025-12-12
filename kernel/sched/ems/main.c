@@ -567,10 +567,6 @@ static int ems_probe(struct platform_device *pdev)
 	ems_freq_select_init(pdev);
 	ems_core_select_init(pdev);
 
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	dsu_slice_down_init();
-#endif
-
 	ret = hook_init();
 	if (ret) {
 		WARN_ON("EMS failed to register vendor hook\n");

@@ -1,8 +1,6 @@
 /*
- * Copyright (c) 2019 samsung electronics co., ltd.
+ * Copyright (c) 2023 samsung electronics co., ltd.
  *		http://www.samsung.com/
- *
- * Author : Choonghoon Park (choong.park@samsung.com)
  *
  * this program is free software; you can redistribute it and/or modify
  * it under the terms of the gnu general public license version 2 as
@@ -26,16 +24,31 @@
 #include <linux/sort.h>
 #include <uapi/linux/sched/types.h>
 
+#if IS_ENABLED(CONFIG_SCHED_EMS)
 #include <linux/ems.h>
+#else
+#include <linux/sched/clock.h>
+#endif
 
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/exynos/debug-snapshot.h>
 #include <soc/samsung/ect_parser.h>
 #include <soc/samsung/exynos-dm.h>
 
-#define DSUFREQ_ENTRY_INVALID   (~0u)
+#include <trace/events/power.h>
+#define CREATE_TRACE_POINTS
+#include <trace/events/dsufreq.h>
+
 #define DSUFREQ_RELATION_L	0
 #define DSUFREQ_RELATION_H	1
+
+struct dsufreq_qos_tracer {
+	struct list_head		node;
+
+	char				*label;
+
+	struct dev_pm_qos_request	*req;
+};
 
 struct exynos_dsufreq_dm {
 	struct list_head		list;
@@ -52,12 +65,13 @@ struct dsufreq_stats {
 	unsigned long long		*time_in_state;
 };
 
-struct {
+struct dsufreq {
 	struct device			*dev;
 
 	unsigned int			min_freq;
 	unsigned int			max_freq;
 	unsigned int			cur_freq;
+	unsigned int			hw_cur_freq;
 	unsigned int			min_freq_orig;
 	unsigned int			max_freq_orig;
 
@@ -77,11 +91,25 @@ struct {
 
 	struct dev_pm_qos_request	min_req;
 	struct dev_pm_qos_request	max_req;
+
+	struct list_head		min_requests;
+	struct list_head		max_requests;
+
+	struct kobject			qos_kobj;
+
+	spinlock_t			qos_lock;
 } dsufreq;
 
 /******************************************************************************
  *                               Helper Function                              *
  ******************************************************************************/
+unsigned long *dsufreq_get_freq_table(int *table_size)
+{
+	*table_size = dsufreq.stats->table_size;
+	return dsufreq.stats->freq_table;
+}
+EXPORT_SYMBOL_GPL(dsufreq_get_freq_table);
+
 static int get_dsufreq_index(struct dsufreq_stats *stats, unsigned int freq)
 {
 	int index;
@@ -109,59 +137,35 @@ static void update_dsufreq_stats(struct dsufreq_stats *stats,
 	stats->total_trans++;
 }
 
-static inline void dsufreq_verify_within_limits(unsigned int min,
-						unsigned int max)
-{
-	if (dsufreq.min_freq < min)
-		dsufreq.min_freq = min;
-	if (dsufreq.max_freq < min)
-		dsufreq.max_freq = min;
-	if (dsufreq.min_freq > max)
-		dsufreq.min_freq = max;
-	if (dsufreq.max_freq > max)
-		dsufreq.max_freq = max;
-	if (dsufreq.min_freq > dsufreq.max_freq)
-		dsufreq.min_freq = dsufreq.max_freq;
-	return;
-}
-
 /* Find lowest freq at or above target in a table in ascending order */
-static int dsufreq_table_find_index_al(unsigned int target_freq)
+static unsigned int dsufreq_table_find_index_al(unsigned int target_freq)
 {
 	unsigned long *freq_table = dsufreq.stats->freq_table;
-	unsigned int best_freq = 0;
+	unsigned int best_freq = dsufreq.min_freq;
 	int idx;
 
 	for (idx = 0 ; idx < dsufreq.stats->table_size; idx++) {
-		if (freq_table[idx] == DSUFREQ_ENTRY_INVALID)
-			continue;
-
-		if (freq_table[idx] >= target_freq)
-			return freq_table[idx];
-
 		best_freq = freq_table[idx];
+
+		if (target_freq <= freq_table[idx])
+			break;
 	}
 
 	return best_freq;
 }
 
 /* Find highest freq at or below target in a table in ascending order */
-static int dsufreq_table_find_index_ah(unsigned int target_freq)
+static unsigned int dsufreq_table_find_index_ah(unsigned int target_freq)
 {
 	unsigned long *freq_table = dsufreq.stats->freq_table;
-	unsigned int best_freq = 0;
+	unsigned int best_freq = dsufreq.min_freq;
 	int idx;
 
 	for (idx = 0; idx < dsufreq.stats->table_size; idx++) {
-		if (freq_table[idx] == DSUFREQ_ENTRY_INVALID)
-			continue;
+		if (target_freq < freq_table[idx])
+			break;
 
-		if (freq_table[idx] <= target_freq) {
-			best_freq = freq_table[idx];
-			continue;
-		}
-
-		return best_freq;
+		best_freq = freq_table[idx];
 	}
 
 	return best_freq;
@@ -170,7 +174,7 @@ static int dsufreq_table_find_index_ah(unsigned int target_freq)
 static unsigned int resolve_dsufreq(unsigned int target_freq,
 						unsigned int relation)
 {
-	unsigned int resolve_freq;
+	unsigned int resolve_freq = 0;
 
 	switch (relation) {
 	case DSUFREQ_RELATION_L:
@@ -181,40 +185,68 @@ static unsigned int resolve_dsufreq(unsigned int target_freq,
 		break;
 	default:
 		pr_err("%s: Invalid relation: %d\n", __func__, relation);
-		return -EINVAL;
+		break;
 	}
 
 	return resolve_freq;
 }
 
 /******************************************************************************
+ *                           Transition Notifier                              *
+ ******************************************************************************/
+static RAW_NOTIFIER_HEAD(dsufreq_transition_notifier_list);
+
+int dsufreq_register_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_register(
+			&dsufreq_transition_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(dsufreq_register_notifier);
+
+int dsufreq_unregister_notifier(struct notifier_block *nb)
+{
+	return raw_notifier_chain_unregister(
+			&dsufreq_transition_notifier_list, nb);
+}
+EXPORT_SYMBOL_GPL(dsufreq_unregister_notifier);
+
+static void dsufreq_notify_transition(int freq)
+{
+	raw_notifier_call_chain(&dsufreq_transition_notifier_list, 0, &freq);
+}
+
+/******************************************************************************
  *                               Scaling Function                             *
  ******************************************************************************/
-static int scale_dsufreq(unsigned int target_freq, unsigned int relation)
-{
-	int ret = 0;
-
-	dbg_snapshot_freq(dsufreq.dss_type, dsufreq.cur_freq, target_freq,
-							DSS_FLAG_IN);
-
+#define KHz	1000
 #if IS_ENABLED(CONFIG_EXYNOS_DVFS_MANAGER)
-	ret = cal_dfs_set_rate(dsufreq.cal_id, target_freq);
+static int scale_dsufreq(unsigned int target_freq)
+{
+	int ret = 0, out_flag;
+
+#if !IS_ENABLED(CONFIG_PRECISE_DVFS_LOGGING)
+	dbg_snapshot_freq(dsufreq.dss_type, dsufreq.cur_freq, target_freq, DSS_FLAG_IN);
 #endif
 
-	dbg_snapshot_freq(dsufreq.dss_type, dsufreq.cur_freq, target_freq,
-				  ret < 0 ? ret : DSS_FLAG_OUT);
+	ret = cal_dfs_set_rate(dsufreq.cal_id, target_freq);
+	out_flag = (ret < 0) ? ret : DSS_FLAG_OUT;
+
+#if !IS_ENABLED(CONFIG_PRECISE_DVFS_LOGGING)
+	dbg_snapshot_freq(dsufreq.dss_type, dsufreq.cur_freq, target_freq, out_flag);
+#endif
+
 	return ret;
 }
 
 static int dm_scaler(int dm_type, void *devdata, unsigned int target_freq,
-						unsigned int relation)
+						unsigned int duration)
 {
 	int ret;
-	unsigned int resolve_freq;
+	unsigned int resolve_freq, cur_freq = dsufreq.cur_freq;
 
-	resolve_freq = resolve_dsufreq(target_freq, relation);
-	if (resolve_freq < 0) {
-		pr_err("%s: freq out of range, target_freq %u\n",
+	resolve_freq = resolve_dsufreq(target_freq, 0);
+	if (!resolve_freq) {
+		pr_err("%s: failed to resolve target_freq %u\n",
 					__func__, target_freq);
 		return -EINVAL;
 	}
@@ -222,19 +254,105 @@ static int dm_scaler(int dm_type, void *devdata, unsigned int target_freq,
 	if (resolve_freq == dsufreq.cur_freq)
 		return 0;
 
-	ret = scale_dsufreq(resolve_freq, relation);
+	ret = scale_dsufreq(resolve_freq);
 	if (ret) {
 		pr_err("failed to scale frequency of DSU (%d -> %d)\n",
 				dsufreq.cur_freq, resolve_freq);
 		return ret;
 	}
 
+	dsufreq_notify_transition(resolve_freq);
+
 	update_dsufreq_time_in_state(dsufreq.stats);
 	update_dsufreq_stats(dsufreq.stats, resolve_freq);
 	dsufreq.cur_freq = resolve_freq;
+	dsufreq.hw_cur_freq = resolve_freq;
+
+	trace_dsufreq_dm_scaler(target_freq, resolve_freq, cur_freq);
+	trace_clock_set_rate("DSU", resolve_freq * KHz, raw_smp_processor_id());
 
 	return ret;
 }
+#elif IS_ENABLED(CONFIG_EXYNOS_ESCA_DVFS_MANAGER)
+static int dm_scaler(int dm_type, void *devdata, unsigned int target_freq,
+						unsigned int duration)
+{
+	unsigned int resolve_freq, prev_freq = dsufreq.cur_freq;
+
+	resolve_freq = resolve_dsufreq(target_freq, 0);
+	if (!resolve_freq) {
+		pr_err("%s: failed to resolve target_freq %u\n",
+					__func__, target_freq);
+		return -EINVAL;
+	}
+
+	dsufreq_notify_transition(resolve_freq);
+
+	update_dsufreq_time_in_state(dsufreq.stats);
+	update_dsufreq_stats(dsufreq.stats, resolve_freq);
+	dsufreq.cur_freq = resolve_freq;
+	dsufreq.hw_cur_freq = target_freq;
+
+	trace_dsufreq_dm_scaler(target_freq, resolve_freq, prev_freq);
+	trace_clock_set_rate("DSU", resolve_freq * KHz, raw_smp_processor_id());
+
+	return 0;
+}
+#endif
+/******************************************************************************
+ *                          DSUFREQ DRIVER INTERFACE                          *
+ ******************************************************************************/
+unsigned int dsufreq_get_cur_freq(void)
+{
+	return dsufreq.cur_freq;
+}
+EXPORT_SYMBOL_GPL(dsufreq_get_cur_freq);
+
+unsigned int dsufreq_get_max_freq(void)
+{
+	return dsufreq.max_freq;
+}
+EXPORT_SYMBOL_GPL(dsufreq_get_max_freq);
+
+unsigned int dsufreq_get_min_freq(void)
+{
+	return dsufreq.min_freq;
+}
+EXPORT_SYMBOL_GPL(dsufreq_get_min_freq);
+
+int exynos_dsufreq_target(unsigned int target_freq)
+{
+	int ret;
+	unsigned long freq, prev_freq = dsufreq.cur_freq;
+
+	target_freq = resolve_dsufreq(target_freq, 0);
+	if (!target_freq) {
+		pr_err("%s: failed to resolve target_freq %u\n",
+					__func__, target_freq);
+		return -EINVAL;
+	}
+
+	target_freq = max(target_freq, dsufreq.min_freq);
+	target_freq = min(target_freq, dsufreq.max_freq);
+
+	if (target_freq == dsufreq.cur_freq)
+		return 0;
+
+	freq = (unsigned long)target_freq;
+
+#if IS_ENABLED(CONFIG_EXYNOS_ESCA_DVFS_MANAGER) && !IS_ENABLED(CONFIG_PRECISE_DVFS_LOGGING)
+	dbg_snapshot_freq(dsufreq.dss_type, dsufreq.cur_freq, target_freq, DSS_FLAG_IN);
+#endif
+
+	ret = DM_CALL(dsufreq.dm_type, &freq);
+	if (ret)
+		pr_err("failed to scale frequency of DSU (%d -> %d)\n",	dsufreq.cur_freq, target_freq);
+
+	trace_dsufreq_target(target_freq, prev_freq, dsufreq.cur_freq);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(exynos_dsufreq_target);
 
 /******************************************************************************
  *                              DSUFreq dev PM QoS                            *
@@ -242,13 +360,18 @@ static int dm_scaler(int dm_type, void *devdata, unsigned int target_freq,
 static int dsufreq_pm_qos_notifier(struct notifier_block *nb,
 				unsigned long freq, void *data)
 {
-	dsufreq.min_freq = dev_pm_qos_read_value(dsufreq.dev,
-					DEV_PM_QOS_MIN_FREQUENCY);
-	dsufreq.max_freq = dev_pm_qos_read_value(dsufreq.dev,
-					DEV_PM_QOS_MAX_FREQUENCY);
+	unsigned int min_freq, max_freq;
 
-	dsufreq_verify_within_limits(dsufreq.min_freq_orig,
-				dsufreq.max_freq_orig);
+	min_freq = dev_pm_qos_read_value(dsufreq.dev, DEV_PM_QOS_MIN_FREQUENCY);
+	max_freq = dev_pm_qos_read_value(dsufreq.dev, DEV_PM_QOS_MAX_FREQUENCY);
+
+	min_freq = resolve_dsufreq(min_freq, DSUFREQ_RELATION_L);
+	max_freq = resolve_dsufreq(max_freq, DSUFREQ_RELATION_H);
+
+	min_freq = min(min_freq, max_freq);
+
+	dsufreq.min_freq = min_freq;
+	dsufreq.max_freq = max_freq;
 
 	policy_update_call_to_DM(dsufreq.dm_type, dsufreq.min_freq,
 						dsufreq.max_freq);
@@ -272,10 +395,39 @@ static int dsufreq_pm_qos_notifier(struct notifier_block *nb,
  * dev_pm_qos_update_reqeust() and dev_pm_qos_remove_request() provided by
  * dev_pm_qos framework.
  */
-int dsufreq_qos_add_request(struct dev_pm_qos_request *req,
+int dsufreq_qos_add_request(char *label, struct dev_pm_qos_request *req,
 			   enum dev_pm_qos_req_type type, s32 value)
 {
-	return dev_pm_qos_add_request(dsufreq.dev, req, type, value);
+	int ret = 0;
+	struct dsufreq_qos_tracer *qos_req;
+
+	ret = dev_pm_qos_add_request(dsufreq.dev, req, type, value);
+	if (ret < 0) {
+		pr_err("%s: failed to add_request type %d value %d\n",
+				__func__, type, value);
+		return ret;
+	}
+
+	qos_req = kzalloc(sizeof(struct dsufreq_qos_tracer), GFP_KERNEL);
+	if (!qos_req) {
+		pr_err("%s: failed to alloc qos_tracer\n", __func__);
+		return -ENOMEM;
+	}
+
+	qos_req->label = label;
+	qos_req->req = req;
+	INIT_LIST_HEAD(&qos_req->node);
+
+	spin_lock(&dsufreq.qos_lock);
+
+	if (type == DEV_PM_QOS_MIN_FREQUENCY)
+		list_add(&qos_req->node, &dsufreq.min_requests);
+	else
+		list_add(&qos_req->node, &dsufreq.max_requests);
+
+	spin_unlock(&dsufreq.qos_lock);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(dsufreq_qos_add_request);
 
@@ -285,16 +437,16 @@ EXPORT_SYMBOL_GPL(dsufreq_qos_add_request);
 static ssize_t dsufreq_show_min_freq(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, 30, "%d\n", dsufreq.min_req.data.freq.pnode.prio);
+	return snprintf(buf, 30, "%u\n", dsufreq.min_freq);
 }
 
 static ssize_t dsufreq_store_min_freq(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
-	int input;
+	unsigned int input;
 
-	if (sscanf(buf, "%8d", &input) != 1)
+	if (sscanf(buf, "%8u", &input) != 1)
 		return -EINVAL;
 
 	dev_pm_qos_update_request(&dsufreq.min_req, input);
@@ -305,16 +457,16 @@ static ssize_t dsufreq_store_min_freq(struct device *dev,
 static ssize_t dsufreq_show_max_freq(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, 30, "%d\n", dsufreq.max_req.data.freq.pnode.prio);
+	return snprintf(buf, 30, "%u\n", dsufreq.max_freq);
 }
 
 static ssize_t dsufreq_store_max_freq(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
-	int input;
+	unsigned int input;
 
-	if (sscanf(buf, "%8d", &input) != 1)
+	if (sscanf(buf, "%8u", &input) != 1)
 		return -EINVAL;
 
 	dev_pm_qos_update_request(&dsufreq.max_req, input);
@@ -325,7 +477,12 @@ static ssize_t dsufreq_store_max_freq(struct device *dev,
 static ssize_t dsufreq_show_cur_freq(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, 30, "%d\n", dsufreq.cur_freq);
+	int ret = 0;
+
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "cur_freq: %u\n", dsufreq.cur_freq);
+	ret += scnprintf(buf + ret, PAGE_SIZE - ret, "hw_cur_freq: %u\n", dsufreq.hw_cur_freq);
+
+	return ret;
 }
 
 static ssize_t dsufreq_show_time_in_state(struct device *dev,
@@ -338,10 +495,7 @@ static ssize_t dsufreq_show_time_in_state(struct device *dev,
 	update_dsufreq_time_in_state(stats);
 
 	for (i = 0; i < stats->table_size; i++) {
-		if (stats->freq_table[i] == DSUFREQ_ENTRY_INVALID)
-			continue;
-
-		count += snprintf(&buf[count], PAGE_SIZE - count, "%u %llu\n",
+		count += snprintf(&buf[count], PAGE_SIZE - count, "%lu %llu\n",
 			stats->freq_table[i],
 			nsec_to_clock_t(stats->time_in_state[i]));
 	}
@@ -352,7 +506,52 @@ static ssize_t dsufreq_show_time_in_state(struct device *dev,
 static ssize_t dsufreq_show_total_trans(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	return snprintf(buf, 30, "%d\n", dsufreq.stats->total_trans);
+	return snprintf(buf, 30, "%llu\n", dsufreq.stats->total_trans);
+}
+
+static void dsufreq_show_qos_list(enum dev_pm_qos_req_type type, char *buf, ssize_t *count)
+{
+	struct dsufreq_qos_tracer *qos_req;
+	struct list_head *qos_list;
+	int req_cnt = 0;
+
+	if (type == DEV_PM_QOS_MIN_FREQUENCY) {
+		qos_list = &dsufreq.min_requests;
+		*count += scnprintf(buf + *count, PAGE_SIZE - *count, "[Min Limit]\n");
+	}
+	else {
+		qos_list = &dsufreq.max_requests;
+		*count += scnprintf(buf + *count, PAGE_SIZE - *count, "[Max Limit]\n");
+	}
+
+	if (list_empty(qos_list))
+		*count += scnprintf(buf + *count, PAGE_SIZE - *count, "QoS List is Empty!\n");
+	else {
+		list_for_each_entry(qos_req, qos_list, node) {
+			*count += scnprintf(buf + *count, PAGE_SIZE - *count, "%d: %s(Request Freq=%u)\n",
+					++req_cnt, qos_req->label, qos_req->req->data.freq.pnode.prio);
+		}
+	}
+
+	if (type == DEV_PM_QOS_MIN_FREQUENCY)
+		*count += scnprintf(buf + *count, PAGE_SIZE - *count, "Scaled Min Freq=%u\n\n",
+				dsufreq.min_freq);
+	else
+		*count += scnprintf(buf + *count, PAGE_SIZE - *count, "Scaled Max Freq=%u\n\n",
+				dsufreq.max_freq);
+}
+
+static ssize_t dsufreq_show_qos_tracer(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t count = 0;
+
+	spin_lock(&dsufreq.qos_lock);
+	dsufreq_show_qos_list(DEV_PM_QOS_MAX_FREQUENCY, buf, &count);
+	dsufreq_show_qos_list(DEV_PM_QOS_MIN_FREQUENCY, buf, &count);
+	spin_unlock(&dsufreq.qos_lock);
+
+	return count;
 }
 
 static DEVICE_ATTR(scaling_min_freq, S_IRUGO | S_IWUSR,
@@ -365,6 +564,8 @@ static DEVICE_ATTR(time_in_state, S_IRUGO,
 		dsufreq_show_time_in_state, NULL);
 static DEVICE_ATTR(total_trans, S_IRUGO,
 		dsufreq_show_total_trans, NULL);
+static DEVICE_ATTR(qos_tracer, S_IRUGO,
+		dsufreq_show_qos_tracer, NULL);
 
 static struct attribute *dsufreq_attrs[] = {
 	&dev_attr_scaling_min_freq.attr,
@@ -372,6 +573,7 @@ static struct attribute *dsufreq_attrs[] = {
 	&dev_attr_scaling_cur_freq.attr,
 	&dev_attr_time_in_state.attr,
 	&dev_attr_total_trans.attr,
+	&dev_attr_qos_tracer.attr,
 	NULL,
 };
 
@@ -481,27 +683,35 @@ init_fail:
 static int dsufreq_init_dm(struct device_node *dn)
 {
 	int ret;
+	unsigned int boot_freq;
 
-	ret = of_property_read_u32(dn, "dm-type", &dsufreq.dm_type);
-	if (ret)
-		return ret;
+	if (of_property_read_u32(dn, "dm-type", &dsufreq.dm_type)) {
+		pr_err("%s: dm-type does not exist in dt\n", __func__);
+		return -EINVAL;
+	}
+	boot_freq = cal_dfs_get_boot_freq(dsufreq.cal_id);
 
 	ret = exynos_dm_data_init(dsufreq.dm_type, &dsufreq,
 				dsufreq.min_freq, dsufreq.max_freq,
-				dsufreq.min_freq);
-	if (ret)
+				boot_freq);
+	if (ret) {
+		pr_err("%s: failed to init dm_data\n", __func__);
 		return ret;
+	}
 
 	dn = of_get_child_by_name(dn, "hw-constraints");
 	if (dn) {
 		ret = dsufreq_init_dm_constraint_table(dn);
-		if (ret)
+		if (ret) {
+			pr_err("%s: failed to init dm_constraint_table\n", __func__);
 			return ret;
+		}
 	}
 
 	return register_exynos_dm_freq_scaler(dsufreq.dm_type, dm_scaler);
 }
 
+#if ((!IS_ENABLED(CONFIG_SCHED_EMS_DSU_FREQ_SELECT)) && IS_ENABLED(CONFIG_SCHED_EMS))
 static void apply_energy_table(unsigned long *freq_table, int size)
 {
 	struct fv_table {
@@ -527,178 +737,127 @@ static void apply_energy_table(unsigned long *freq_table, int size)
 	kfree(fv_table);
 	kfree(volt_table);
 }
+#endif
 
-static int __dsufreq_init_stat_table(struct dsufreq_stats *stats,
-				unsigned long *freq_table, int raw_size)
+#define MAX_TABLE_SIZE	50
+#define FREQ_MERGE_THRESHOLD	48000
+static void dsufreq_adjust_min_max_freq(unsigned long *freq_table, int *size)
 {
-	int i, k, size = 0;
+	unsigned long temp[MAX_TABLE_SIZE] = {0, };
+	int i, j;
 
-	for (i = 0; i < raw_size; i++) {
-		if (freq_table[i] > dsufreq.max_freq) {
-			freq_table[i] = DSUFREQ_ENTRY_INVALID;
-			continue;
-		}
+	if (*size < 2)
+		return;
 
-		if (freq_table[i] < dsufreq.min_freq) {
-			freq_table[i] = DSUFREQ_ENTRY_INVALID;
-			continue;
-		}
-
-		size++;
+	if (freq_table[1] - freq_table[0] < FREQ_MERGE_THRESHOLD) {
+		freq_table[1] = freq_table[0];
+		freq_table[0] = 0;
 	}
 
-	stats->freq_table = kcalloc(size, sizeof(unsigned long), GFP_KERNEL);
-	if (!stats->freq_table) {
-		kfree(freq_table);
-		return -ENOMEM;
+	if (freq_table[*size - 1] - freq_table[*size - 2] < FREQ_MERGE_THRESHOLD) {
+		freq_table[*size - 2] = freq_table[*size - 1];
+		freq_table[*size - 1] = 0;
 	}
 
-	k = 0;
-	for (i = 0; i < raw_size; i++) {
-		if (freq_table[i] == DSUFREQ_ENTRY_INVALID)
+	for (i = 0, j = 0; i < *size; i++) {
+		if (!freq_table[i])
 			continue;
 
-		stats->freq_table[k++] = freq_table[i];
+		temp[j++] = freq_table[i];
 	}
 
-	stats->table_size = size;
-
-	apply_energy_table(stats->freq_table, stats->table_size);
-
-	return 0;
+	memcpy(freq_table, temp, sizeof(unsigned long) * j);
+	*size = j;
 }
 
-#define MAX_TABLE_SIZE	100
-
-/* table_b merges into table_a and return size of merged table */
-static int merge_table(unsigned int *table_a, unsigned int *table_b, int size)
+static void dsufreq_fill_freq_table(unsigned long *freq_table, int *size,
+		unsigned int *raw_table, int raw_size)
 {
-	unsigned int temp[MAX_TABLE_SIZE] = {0, };
-	int i, j, k;
+	int i, j = 0;
 
-	/* if table_a is empty, copy table */
-	if (!table_a[0]) {
-		memcpy(table_a, table_b, sizeof(unsigned int ) * size);
-		return size;
+	freq_table[j++] = dsufreq.min_freq;
+
+	for (i = 0; i < raw_size; i++) {
+		if (raw_table[i] <= dsufreq.min_freq)
+			continue;
+		else if (raw_table[i] >= dsufreq.max_freq)
+			break;
+
+		freq_table[j++] = raw_table[i];
 	}
+
+	freq_table[j++] = dsufreq.max_freq;
+	*size = j;
 
 	/*
-	 * Merge both table. Table is in ascending order.
-	 * i : index of table_a
-	 * j : index of table_b
-	 * k : index of merged table
+	 * Adjust min/max freq in freq-table.
+	 * If the gap of two frequencies is lower than threshold, merge the two frequencies.
 	 */
-	i = j = k = 0;
-	while (table_a[i] || table_b[j]) {
-		unsigned int freq;
-
-		if (!table_a[i])
-			freq = table_b[j++];
-		else if (!table_b[j])
-			freq = table_a[i++];
-		else if (table_a[i] < table_b[j])
-			freq = table_a[i++];
-		else if (table_a[i] > table_b[j])
-			freq = table_b[j++];
-		else {
-			freq = table_a[i];
-			i++, j++;
-		}
-
-		if (k > 0 && temp[k - 1] == freq)
-			continue;
-
-		temp[k++] = freq;
-	};
-
-	memcpy(table_a, temp, sizeof(unsigned int ) * k);
-
-	return k;
+	dsufreq_adjust_min_max_freq(freq_table, size);
 }
 
-static int dsufreq_init_stat_table(struct device_node *dn,
-					struct dsufreq_stats *stats)
+static int dsufreq_parse_freq_table(struct device_node *dn, unsigned long *freq_table,
+		int *size)
 {
-	unsigned long *freq_table;
-	unsigned int merged_table[MAX_TABLE_SIZE] = {0, };
-	int size, i;
+	unsigned int raw_table[MAX_TABLE_SIZE] = {0, };
+	int raw_size;
 
-        while ((dn = of_find_node_by_type(dn, "cpudsu-table"))) {
-		struct device_node *const_dn, *child;
-
-		const_dn = of_parse_phandle(dn, "constraint", 0);
-		if (!const_dn)
-			continue;
-
-		for_each_child_of_node(const_dn, child) {
-			int raw_size;
-			unsigned int raw_table[MAX_TABLE_SIZE];
-			unsigned int dsu_table[MAX_TABLE_SIZE];
-
-			raw_size = of_property_count_u32_elems(child, "table");
-			if (raw_size <= 0 || raw_size >= MAX_TABLE_SIZE) {
-				pr_err("%s: out of table size\n", __func__);
-				continue;
-			}
-
-			/*
-			 * read CPU-DSU frequency mapping table
-			 * from device tree.
-			 */
-			if (of_property_read_u32_array(child, "table",
-						raw_table, raw_size)) {
-				pr_err("%s: failed to get table\n", __func__);
-				continue;
-			}
-
-			/*
-			 * get DSU frequency from table.
-			 * DSU frequencies are in odd indices.
-			 */
-			for (i = 1; i < raw_size; i += 2)
-				dsu_table[(i - 1) / 2] = raw_table[i];
-
-			size = merge_table(merged_table,
-					dsu_table, raw_size / 2);
-		}
+	raw_size = of_property_count_u32_elems(dn, "freq-table");
+	if (raw_size <= 0 || raw_size >= MAX_TABLE_SIZE) {
+		pr_err("%s: out of table size\n", __func__);
+		return -EINVAL;
 	}
 
-	freq_table = kcalloc(size, sizeof(unsigned long), GFP_KERNEL);
-	if (!freq_table) {
-		kfree(freq_table);
-		return -ENOMEM;
+	if (of_property_read_u32_array(dn, "freq-table", raw_table, raw_size)) {
+		pr_err("%s: failed to get table\n", __func__);
+		return -EINVAL;
 	}
 
-	/* Copy 'int' type table to 'long' type table */
-	for (i = 0; i < size; i++) {
-		freq_table[i] = merged_table[i];
-	}
+	/* Fill freq-table with freq defined in device tree and CAL */
+	dsufreq_fill_freq_table(freq_table, size, raw_table, raw_size);
 
-	return __dsufreq_init_stat_table(stats, freq_table, size);
+#if ((!IS_ENABLED(CONFIG_SCHED_EMS_DSU_FREQ_SELECT)) && IS_ENABLED(CONFIG_SCHED_EMS))
+	apply_energy_table(freq_table, *size);
+#endif
+
+	return 0;
 }
 
 static int dsufreq_init_stats(struct device_node *dn)
 {
 	struct dsufreq_stats *stats;
-	int ret = 0;
+	unsigned long freq_table[MAX_TABLE_SIZE] = {0, };
+	int size = 0;
 
 	stats = kzalloc(sizeof(struct dsufreq_stats), GFP_KERNEL);
-	if (!stats)
+	if (!stats) {
+		pr_err("%s: failed to alloc stats\n", __func__);
 		return -ENOMEM;
-
-	ret = dsufreq_init_stat_table(dn, stats);
-	if (ret < 0) {
-		kfree(stats);
-		return ret;
 	}
 
-	/* Initialize DSUFreq time_in_state */
-	stats->time_in_state = kcalloc(stats->table_size,
-				sizeof(unsigned long long), GFP_KERNEL);
+	if (dsufreq_parse_freq_table(dn, freq_table, &size)) {
+		kfree(stats);
+		pr_err("%s: failed to parse freq-table from dt\n", __func__);
+		return -EINVAL;
+	}
+
+	stats->time_in_state = kcalloc(size, sizeof(unsigned long long), GFP_KERNEL);
 	if (!stats->time_in_state) {
 		kfree(stats);
+		pr_err("%s: failed to alloc time in state\n", __func__);
 		return -ENOMEM;
 	}
+
+	stats->freq_table = kcalloc(size, sizeof(unsigned long), GFP_KERNEL);
+	if (!stats->freq_table) {
+		kfree(stats->time_in_state);
+		kfree(stats);
+		pr_err("%s: failed to alloc freq table\n", __func__);
+		return -ENOMEM;
+	}
+
+	memcpy(stats->freq_table, freq_table, sizeof(unsigned long) * size);
+	stats->table_size = size;
 
 	dsufreq.stats = stats;
 
@@ -712,37 +871,9 @@ static int dsufreq_init_stats(struct device_node *dn)
 	return 0;
 }
 
-static int dsufreq_init(struct device_node *dn)
+static int dsufreq_init_qos(void)
 {
-	int ret;
-	unsigned int val;
-
-	ret = of_property_read_u32(dn, "cal-id", &dsufreq.cal_id);
-	if (ret)
-		return ret;
-
-	/* Get min/max/cur DSUFreq */
-	dsufreq.min_freq = cal_dfs_get_min_freq(dsufreq.cal_id);
-	dsufreq.max_freq = cal_dfs_get_max_freq(dsufreq.cal_id);
-
-	if (!of_property_read_u32(dn, "min-freq", &val))
-		dsufreq.min_freq_orig = max(dsufreq.min_freq, val);
-	if (!of_property_read_u32(dn, "max-freq", &val))
-		dsufreq.max_freq_orig = min(dsufreq.max_freq, val);
-
-	dsufreq.min_freq_orig = dsufreq.min_freq;
-	dsufreq.max_freq_orig = dsufreq.max_freq;
-
-	dsufreq.cur_freq = cal_dfs_get_boot_freq(dsufreq.cal_id);
-
-	ret = of_property_read_u32(dn, "dss-type", &val);
-	if (ret)
-		return ret;
-	dsufreq.dss_type = val;
-
-	/* Initiallize dev PM QoS */
-	dsufreq.nb_min.notifier_call = dsufreq_pm_qos_notifier;
-	dsufreq.nb_max.notifier_call = dsufreq_pm_qos_notifier;
+	int ret = 0;
 
 	ret = dev_pm_qos_add_notifier(dsufreq.dev, &dsufreq.nb_min,
 					DEV_PM_QOS_MIN_FREQUENCY);
@@ -758,10 +889,48 @@ static int dsufreq_init(struct device_node *dn)
 		return ret;
 	}
 
-	dsufreq_qos_add_request(&dsufreq.min_req, DEV_PM_QOS_MIN_FREQUENCY,
+	dsufreq.nb_min.notifier_call = dsufreq_pm_qos_notifier;
+	dsufreq.nb_max.notifier_call = dsufreq_pm_qos_notifier;
+
+	INIT_LIST_HEAD(&dsufreq.min_requests);
+	INIT_LIST_HEAD(&dsufreq.max_requests);
+
+	spin_lock_init(&dsufreq.qos_lock);
+
+	dsufreq_qos_add_request("sysfs", &dsufreq.min_req, DEV_PM_QOS_MIN_FREQUENCY,
 							dsufreq.min_freq);
-	dsufreq_qos_add_request(&dsufreq.max_req, DEV_PM_QOS_MAX_FREQUENCY,
+	dsufreq_qos_add_request("sysfs", &dsufreq.max_req, DEV_PM_QOS_MAX_FREQUENCY,
 							dsufreq.max_freq);
+
+	return ret;
+}
+
+static int dsufreq_init(struct device_node *dn)
+{
+	int ret;
+	unsigned int min_freq, max_freq, val;
+	unsigned long freq;
+
+	if (of_property_read_u32(dn, "cal-id", &dsufreq.cal_id))
+		return -EINVAL;
+
+	if (of_property_read_u32(dn, "dss-type", &dsufreq.dss_type))
+		return -EINVAL;
+
+	/* Get min/max/cur DSUFreq */
+	min_freq = cal_dfs_get_min_freq(dsufreq.cal_id);
+	max_freq = cal_dfs_get_max_freq(dsufreq.cal_id);
+
+	if (!of_property_read_u32(dn, "min-freq", &val))
+		min_freq = max(min_freq, val);
+	if (!of_property_read_u32(dn, "max-freq", &val))
+		max_freq = min(max_freq, val);
+
+	dsufreq.min_freq = dsufreq.min_freq_orig = min_freq;
+	dsufreq.max_freq = dsufreq.max_freq_orig = max_freq;
+
+	dsufreq.cur_freq = cal_dfs_get_boot_freq(dsufreq.cal_id);
+	dsufreq.hw_cur_freq = dsufreq.cur_freq;
 
 	/* initialize stats */
 	ret = dsufreq_init_stats(dn);
@@ -773,23 +942,45 @@ static int dsufreq_init(struct device_node *dn)
 	if (ret)
 		return ret;
 
+	/* Initiallize dev PM QoS */
+	ret = dsufreq_init_qos();
+	if (ret)
+		return ret;
+
+	freq = dsufreq.cur_freq;
+	DM_CALL(dsufreq.dm_type, &freq);
+
 	return ret;
 }
 
 static int exynos_dsufreq_probe(struct platform_device *pdev)
 {
 	struct device_node *dn = pdev->dev.of_node;
-	int ret = 0;
+	int ret = 0, i;
 
 	dsufreq.dev = &pdev->dev;
 
 	ret = dsufreq_init(dn);
 	if (ret)
-		return ret;
+		goto fail;
 
 	ret = sysfs_create_group(&pdev->dev.kobj, &dsufreq_group);
 	if (ret)
-		return ret;
+		goto fail;
+
+	pr_info("available dsu frequencies\n");
+	for (i = 0; i < dsufreq.stats->table_size; i++)
+		pr_info("%lu\n", dsufreq.stats->freq_table[i]);
+
+	return 0;
+
+fail:
+	if (dsufreq.stats && dsufreq.stats->time_in_state)
+		kfree(dsufreq.stats->time_in_state);
+	if (dsufreq.stats && dsufreq.stats->freq_table)
+		kfree(dsufreq.stats->freq_table);
+	if (dsufreq.stats)
+		kfree(dsufreq.stats);
 
 	return ret;
 }
@@ -811,6 +1002,10 @@ static struct platform_driver exynos_dsufreq_driver = {
 
 module_platform_driver(exynos_dsufreq_driver);
 
+#ifdef CONFIG_SCHED_EMS_DSU_FREQ_SELECT
+MODULE_SOFTDEP("post: ems");
+#else
 MODULE_SOFTDEP("pre: exynos-acme");
+#endif
 MODULE_DESCRIPTION("Exynos DSUFreq drvier");
 MODULE_LICENSE("GPL");

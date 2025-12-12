@@ -455,6 +455,18 @@ unsigned long et_freq_to_dpower(int cpu, unsigned long freq)
 	return table->default_state[index].dynamic_power;
 }
 
+unsigned long et_freq_to_spower(int cpu, unsigned long freq)
+{
+	struct energy_table *table = per_cpu_et(cpu);
+	int index = get_freq_index(table->default_state, table->nr_states, freq);
+
+	if (index < 0)
+		return 0;
+
+	return table->default_state[index].static_power;
+}
+EXPORT_SYMBOL_GPL(et_freq_to_spower);
+
 unsigned long et_dpower_to_cap(int cpu, unsigned long dpower)
 {
 	struct energy_table *table = per_cpu_et(cpu);

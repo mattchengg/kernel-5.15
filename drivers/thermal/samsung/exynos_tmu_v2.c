@@ -194,11 +194,11 @@ void exynos_tmu_callback_hotplug(char cpuhp_name[], bool hotplug)
 	}
 	if (hotplug) {
 		cpumask_andnot(&mask, cpu_possible_mask, &data->cpu_domain);
-		ecs_request(data->cpuhp_name, &mask);
+		ecs_request(data->cpuhp_name, &mask, ECS_MAX);
 		pr_info("[esca_acpm_tmu] %s hotplug_out: 0x%02x\n",
 				data->cpuhp_name, mask);
 	} else {
-		ecs_request(data->cpuhp_name, cpu_possible_mask);
+		ecs_request(data->cpuhp_name, cpu_possible_mask, ECS_MAX);
 		pr_info("[esca_acpm_tmu] %s hotplug_in: 0x%02x\n",
 				data->cpuhp_name, cpu_possible_mask);
 	}
@@ -444,7 +444,7 @@ static void exynos_throttle_cpu_hotplug(struct kthread_work *work)
 			 * If current temperature is lower than low threshold,
 			 * call cluster1_cores_hotplug(false) for hotplugged out cpus.
 			 */
-			ecs_request(data->cpuhp_name, cpu_possible_mask);
+			ecs_request(data->cpuhp_name, cpu_possible_mask, ECS_MAX);
 			data->is_cpu_hotplugged_out = false;
 		}
 	} else {
@@ -455,7 +455,7 @@ static void exynos_throttle_cpu_hotplug(struct kthread_work *work)
 			 */
 			data->is_cpu_hotplugged_out = true;
 			cpumask_andnot(&mask, cpu_possible_mask, &data->cpu_domain);
-			ecs_request(data->cpuhp_name, &mask);
+			ecs_request(data->cpuhp_name, &mask, ECS_MAX);
 		}
 	}
 
@@ -1401,7 +1401,7 @@ static int exynos_tmu_irq_work_init(struct platform_device *pdev)
 	if (data->hotplug_enable) {
 		kthread_init_work(&data->hotplug_work, exynos_throttle_cpu_hotplug);
 		snprintf(data->cpuhp_name, THERMAL_NAME_LENGTH, "DTM_%s", data->tmu_name);
-		ecs_request_register(data->cpuhp_name, cpu_possible_mask);
+		ecs_request_register(data->cpuhp_name, cpu_possible_mask, ECS_MAX);
 	}
 #endif
 
@@ -2566,7 +2566,7 @@ static void exynos_tmu_set_pi_params(struct exynos_tmu_data *data)
 static void exynos_tmu_register_hotplug_request(struct exynos_tmu_data *data)
 {
 	snprintf(data->cpuhp_name, THERMAL_NAME_LENGTH, "DTM_%s", data->tmu_name);
-	ecs_request_register(data->cpuhp_name, cpu_possible_mask);
+	ecs_request_register(data->cpuhp_name, cpu_possible_mask, ECS_MAX);
 }
 #endif
 

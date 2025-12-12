@@ -20,8 +20,6 @@
 #include <linux/platform_device.h>
 #include <linux/sched/clock.h>
 
-#include <linux/ems.h>
-
 #include <trace/hooks/cpuidle.h>
 #include <trace/events/ipi.h>
 
@@ -188,6 +186,14 @@ static struct delayed_work deferred_work;
 
 static void do_nothing(void *unused) { }
 
+/*
+ * State of each cpu is managed by a structure declared by percpu, so there
+ * is no need for protection for synchronization. However, when entering
+ * the power mode, it is necessary to set the critical section to check the
+ * state of cpus in the power domain, cpupm_lock is used for it.
+ */
+static spinlock_t cpupm_lock;
+
 /******************************************************************************
  *                                  CPUPM Debug                               *
  ******************************************************************************/
@@ -264,6 +270,34 @@ static int exynos_cpupm_notify(int event, int v)
 	read_lock(&notifier_lock);
 	ret = raw_notifier_call_chain(&notifier_chain, event, &v);
 	read_unlock(&notifier_lock);
+
+	return notifier_to_errno(ret);
+}
+
+static DEFINE_RWLOCK(fcd_notifier_lock);
+static RAW_NOTIFIER_HEAD(fcd_notifier_chain);
+
+int exynos_cpupm_fcd_notifier_register(struct notifier_block *nb)
+{
+	unsigned long flags;
+	int ret;
+
+	write_lock_irqsave(&fcd_notifier_lock, flags);
+	ret = raw_notifier_chain_register(&fcd_notifier_chain, nb);
+	write_unlock_irqrestore(&fcd_notifier_lock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(exynos_cpupm_fcd_notifier_register);
+
+/* cpupm lock must be held */
+static int exynos_cpupm_fcd_notify(int event, int v)
+{
+	int ret = 0;
+
+	lockdep_assert_held(&cpupm_lock);
+
+	ret = raw_notifier_call_chain(&fcd_notifier_chain, event, &v);
 
 	return notifier_to_errno(ret);
 }
@@ -489,13 +523,13 @@ static ssize_t show_stats(char *buf, bool profile)
 	total = profile ? ktime_to_us(profile_time)
 			: ktime_to_us(ktime_sub(ktime_get(), cpupm_init_time));
 
-	for (i = 0; i <= cpuidle_state_max; i++) {
+	for (i = 0; i < cpuidle_state_max; i++) {
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret, "[state%d]\n", i);
 		for_each_possible_cpu(cpu) {
 			pm = per_cpu_ptr(cpupm, cpu);
 			stat = profile ? pm->stat_snapshot : pm->stat;
 			ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-					 "cpu%d %d %d %lld (%d%%)\n",
+					 "cpu%d %d %d %lld (%llu%%)\n",
 					 cpu,
 					 stat[i].entry_count,
 					 stat[i].cancel_count,
@@ -508,7 +542,7 @@ static ssize_t show_stats(char *buf, bool profile)
 	list_for_each_entry(mode, &mode_list, list) {
 		stat = profile ? &mode->stat_snapshot : &mode->stat;
 		ret += scnprintf(buf + ret, PAGE_SIZE - ret,
-				 "%-7s %d %d %lld (%d%%)\n",
+				 "%-7s %d %d %lld (%llu%%)\n",
 				 mode->name,
 				 stat->entry_count,
 				 stat->cancel_count,
@@ -573,7 +607,7 @@ static ssize_t profile_store(struct device *dev,
 
 	for_each_possible_cpu(cpu) {
 		pm = per_cpu_ptr(cpupm, cpu);
-		for (i = 0; i <= cpuidle_state_max; i++)
+		for (i = 0; i < cpuidle_state_max; i++)
 			pm->stat_snapshot[i] = pm->stat[i];
 	}
 
@@ -593,7 +627,7 @@ stop_profile:
 #define field_delta(field)				\
 	delta(mode->stat_snapshot.field, mode->stat.field);
 #define state_delta(field)				\
-	for (i = 0; i <= cpuidle_state_max; i++)	\
+	for (i = 0; i < cpuidle_state_max; i++)	\
 		delta(pm->stat_snapshot[i].field, pm->stat[i].field)
 
 	preempt_disable();
@@ -642,13 +676,6 @@ static DEVICE_ATTR_RW(profile);
 #define check_state_busy(object)	((object)->state == CPUPM_STATE_BUSY)
 #define check_state_idle(object)	((object)->state == CPUPM_STATE_IDLE)
 #define valid_powermode(type)		((type >= 0) && (type < POWERMODE_TYPE_END))
-/*
- * State of each cpu is managed by a structure declared by percpu, so there
- * is no need for protection for synchronization. However, when entering
- * the power mode, it is necessary to set the critical section to check the
- * state of cpus in the power domain, cpupm_lock is used for it.
- */
-static spinlock_t cpupm_lock;
 
 static void awake_cpus(const struct cpumask *cpus)
 {
@@ -1029,6 +1056,20 @@ static void exynos_cpupm_enter(int cpu, ktime_t now)
 	spin_unlock(&cpupm_lock);
 }
 
+static bool first_core_detection(void)
+{
+	int cpu, num_of_busy_cpus = 0;
+	struct exynos_cpupm *pm;
+
+	for_each_cpu(cpu, cpu_online_mask) {
+		pm = per_cpu_ptr(cpupm, cpu);
+		if (check_state_busy(pm))
+			num_of_busy_cpus++;
+	}
+
+	return num_of_busy_cpus == 1;
+}
+
 static void exynos_cpupm_exit(int cpu, int cancel, ktime_t now)
 {
 	struct exynos_cpupm *pm;
@@ -1055,6 +1096,10 @@ static void exynos_cpupm_exit(int cpu, int cancel, ktime_t now)
 	cal_cpu_enable(cpu);
 
 	cpupm_debug(cpu, 1, -1, 0);
+
+	if (first_core_detection())
+		exynos_cpupm_fcd_notify(0, 0);
+
 	spin_unlock(&cpupm_lock);
 }
 /******************************************************************************
@@ -1087,116 +1132,6 @@ static void deferred_init(void)
 	INIT_DELAYED_WORK(&deferred_work, deferred_work_fn);
 	schedule_delayed_work(&deferred_work, msecs_to_jiffies(BOOT_LOCK_TIME_MS));
 }
-/******************************************************************************
- *                        idle latency measuring gadget                       *
- ******************************************************************************/
-struct {
-	struct delayed_work work;
-
-	struct cpumask target;
-	int measurer_cpu;
-
-	int measuring;
-	int count;
-	u64 latency;
-
-	ktime_t t;
-} idle_lmg;
-
-static void idle_latency_work_kick(unsigned long jiffies)
-{
-	schedule_delayed_work_on(idle_lmg.measurer_cpu, &idle_lmg.work, jiffies);
-}
-
-static void idle_latency_measure_start(int target_cpu)
-{
-	struct cpumask mask;
-
-	cpumask_copy(&mask, cpu_active_mask);
-	cpumask_clear_cpu(target_cpu, &mask);
-	idle_lmg.measurer_cpu = cpumask_first(&mask);
-
-	/* keep target cpu dle */
-	ecs_request("idle_latency", &mask);
-
-	cpumask_clear(&idle_lmg.target);
-	cpumask_set_cpu(target_cpu, &idle_lmg.target);
-
-	idle_lmg.count = 0;
-	idle_lmg.latency = 0;
-	idle_lmg.measuring = 1;
-
-	idle_latency_work_kick(0);
-}
-
-static void idle_latency_ipi_fn(void *data)
-{
-	/*
-	 * calculating time between sending and receiving IPI
-	 * and accumulated in latency.
-	 */
-	idle_lmg.latency += ktime_to_ns(ktime_sub(ktime_get(), idle_lmg.t));
-}
-
-static void idle_latency_work_fn(struct work_struct *work)
-{
-	/* save current time and send ipi to target cpu */
-	idle_lmg.t = ktime_get();
-	smp_call_function_many(&idle_lmg.target,
-			idle_latency_ipi_fn, NULL, 1);
-
-	/* measuring count = 1000 */
-	if (++idle_lmg.count < 1000) {
-		/* measuring period = 3 jiffies (8~12ms) */
-		idle_latency_work_kick(3);
-		return;
-	}
-
-	ecs_request("idle_latency", cpu_possible_mask);
-	idle_lmg.measuring = 0;
-}
-
-static void idle_latency_init(void)
-{
-	INIT_DELAYED_WORK(&idle_lmg.work, idle_latency_work_fn);
-	ecs_request_register("idle_latency", cpu_possible_mask);
-}
-
-/******************************************************************************
- *                               sysfs interface                              *
- ******************************************************************************/
-static ssize_t idle_wakeup_latency_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	if (cpumask_empty(&idle_lmg.target))
-		return scnprintf(buf, PAGE_SIZE, "no measurement result\n");
-
-	return scnprintf(buf, PAGE_SIZE,
-			"idle latency(cpu%d) : [%4d/1000] total=%lluns avg=%lluns\n",
-			cpumask_any(&idle_lmg.target),
-			idle_lmg.count, idle_lmg.latency,
-			idle_lmg.latency / idle_lmg.count);
-}
-
-static ssize_t idle_wakeup_latency_store(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	unsigned int cpu;
-
-	if (!sscanf(buf, "%u", &cpu))
-		return -EINVAL;
-
-	if (cpu >= nr_cpu_ids)
-		return -EINVAL;
-
-	if (idle_lmg.measuring)
-		return count;
-
-	idle_latency_measure_start(cpu);
-
-	return count;
-}
-DEVICE_ATTR_RW(idle_wakeup_latency);
 
 static ssize_t debug_net_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -1280,7 +1215,6 @@ static ssize_t power_mode_store(struct device *dev,
 }
 
 static struct attribute *exynos_cpupm_attrs[] = {
-	&dev_attr_idle_wakeup_latency.attr,
 	&dev_attr_debug_net.attr,
 	&dev_attr_debug_ipip.attr,
 	&dev_attr_idle_ip.attr,
@@ -1372,6 +1306,9 @@ static void android_vh_cpu_idle_enter(void *data, int *state,
 	struct cpuidle_state *target_state;
 	ktime_t now = ktime_get();
 	int cpu = smp_processor_id();
+
+	if (*state > 1)
+		*state = 1;
 
 	if (pm->hotplug) {
 		cpuhp_cluster_enable(cpu);
@@ -1696,25 +1633,6 @@ static int exynos_cpupm_mode_init(struct platform_device *pdev)
 	return 0;
 }
 
-static int exynos_cpuidle_state_init(void)
-{
-	struct device_node *cpu_node;
-	int cpu, max;
-
-	for_each_possible_cpu(cpu) {
-		cpu_node = of_cpu_device_node_get(cpu);
-		if (!cpu_node)
-			return -ENODEV;
-
-		max = of_count_phandle_with_args(cpu_node, "cpu-idle-states", NULL);
-		if (max > cpuidle_state_max)
-			cpuidle_state_max = max;
-	}
-	pr_info("%s: cpuidle_state_max = %d\n", __func__, cpuidle_state_max);
-
-	return 0;
-}
-
 #define PMU_IDLE_IP(x)			(0x03E0 + (0x4 * x))
 #define EXTERN_IDLE_IP_MAX		4
 static int extern_idle_ip_init(struct device_node *dn)
@@ -1734,7 +1652,9 @@ static int extern_idle_ip_init(struct device_node *dn)
 
 	for (i = 0; i < count; i++) {
 		struct idle_ip *ip;
-		const char *name = NULL;
+		const char *name;
+
+		of_property_read_string_index(child, "extern-idle-ip", i, &name);
 
 		ip = kzalloc(sizeof(struct idle_ip), GFP_KERNEL);
 		if (!ip) {
@@ -1742,8 +1662,6 @@ static int extern_idle_ip_init(struct device_node *dn)
 			spin_unlock_irqrestore(&idle_ip_lock, flags);
 			return -ENOMEM;
 		}
-
-		of_property_read_string_index(child, "extern-idle-ip", i, &name);
 
 		new_index = list_last_entry(&ip_list,
 				struct idle_ip, list)->index + 1;
@@ -1790,9 +1708,7 @@ static int exynos_cpupm_probe(struct platform_device *pdev)
 				&pdev->dev.kobj, "cpupm"))
 		pr_err("Failed to link CPUPM sysfs to cpu\n");
 
-	ret = exynos_cpuidle_state_init();
-	if (ret)
-		return ret;
+	cpuidle_state_max = cpuidle_get_driver()->state_count;
 
 	ret = exynos_cpupm_mode_init(pdev);
 	if (ret)
@@ -1827,8 +1743,6 @@ static int exynos_cpupm_probe(struct platform_device *pdev)
 
 	cpupm_init_time = ktime_get();
 
-	idle_latency_init();
-	
 	exynos_cpupm_muic_notifier_init();
 
 	deferred_init();

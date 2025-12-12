@@ -323,6 +323,16 @@ static inline void put_cred(const struct cred *_cred)
 	}
 }
 
+static inline void put_cred_module(const struct cred *_cred)
+{
+	struct cred *cred = (struct cred *) _cred;
+
+	if (cred) {
+		if (atomic_dec_and_test(&(cred)->usage))
+			__put_cred(cred);
+	}
+}
+
 /**
  * current_cred - Access the current task's subjective credentials
  *

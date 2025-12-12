@@ -820,7 +820,7 @@ static unsigned int ego_resolve_freq_wo_clamp(struct cpufreq_policy *policy,
 {
 	int index;
 
-	index = cpufreq_table_find_index_al(policy, freq, false);
+	index = cpufreq_table_find_index_al(policy, freq);
 	if (index < 0) {
 		pr_err("target frequency(%d) out of range\n", freq);
 		return 0;

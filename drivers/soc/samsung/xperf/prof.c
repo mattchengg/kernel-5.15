@@ -20,7 +20,6 @@
 #include <linux/platform_device.h>
 #include <soc/samsung/cal-if.h>
 #include <soc/samsung/exynos-devfreq.h>
-#include "../../../kernel/sched/sched.h"
 #include "../../../kernel/sched/ems/ems.h"
 #include <linux/cpumask.h>
 #include <linux/kernel.h>

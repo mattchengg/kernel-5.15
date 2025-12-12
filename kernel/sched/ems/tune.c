@@ -596,13 +596,6 @@ static void parse_dslt(struct device_node *dn, struct emstune_dslt *dslt)
 	parse_cgroup_field(of_get_child_by_name(dn, "running-sensitivity"), dslt->running_sensitivity, 100);
 }
 
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-static void parse_dsu_slice_down(struct device_node *dn, struct emstune_dsu_slice_down *dsu_slice_down)
-{
-	if (of_property_read_u32(dn, "enabled", &dsu_slice_down->enabled))
-		dsu_slice_down->enabled = 0;
-}
-#endif
 
 /******************************************************************************/
 /* emstune sched boost                                                        */
@@ -767,9 +760,6 @@ enum {
 	util_est_enabled,
 	dslt_runnable_sensitivity,
 	dslt_running_sensitivity,
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	dsu_slice_down,
-#endif
 	item_count,
 };
 
@@ -821,9 +811,6 @@ struct aio_tuner_item aio_tuner_items[] = {
 	{ I(util_est_enabled),		CGROUP_ONLY,	UNSIGNED_TYPE,	100 },
 	{ I(dslt_runnable_sensitivity),	CGROUP_ONLY,	SIGNED_TYPE,	INT_MAX},
 	{ I(dslt_running_sensitivity),	CGROUP_ONLY,	SIGNED_TYPE,	INT_MAX},
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	{ I(dsu_slice_down),		NOP,		SIGNED_TYPE,	INT_MAX },
-#endif
 };
 
 static int sanity_check_default(int id, int mode, int level)
@@ -1507,11 +1494,6 @@ static ssize_t aio_tuner_store(struct device *dev,
 	case dslt_running_sensitivity:
 		set_value_cgroup(set->dslt.running_sensitivity, cgroup, value);
 		break;
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	case dsu_slice_down:
-		set_value_single(&set->dsu_slice_down.enabled, value);
-		break;
-#endif
 	}
 
 	emstune_notify();
@@ -1803,13 +1785,6 @@ static ssize_t cur_set_read(struct file *file, struct kobject *kobj,
 	count += sprintf(msg + count, "running-sensitivity\n");
 	count += print_with_cgroup(msg + count, cur_set->dslt.running_sensitivity);
 	count += sprintf(msg + count, "\n");
-
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	/* DSU slice down */
-	count += sprintf(msg + count, "[dsu_slice_down]\n");
-	count += sprintf(msg + count, "enabled : %d\n", cur_set->dsu_slice_down.enabled);
-	count += sprintf(msg + count, "\n");
-#endif
 
 	msg_size = min_t(ssize_t, count, MSG_SIZE);
 	msg_size = memory_read_from_buffer(buf, size, &offset, msg, msg_size);
@@ -2333,9 +2308,6 @@ static void parse_emstune_set(struct device_node *base_node, struct device_node 
 	parse(et);
 	parse(util_est);
 	parse(dslt);
-#ifdef CONFIG_SCHED_EMS_DSU_SLICE_DOWN
-	parse(dsu_slice_down);
-#endif
 }
 
 static void emstune_boot_done(struct work_struct *work)
