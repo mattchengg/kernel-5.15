@@ -132,8 +132,10 @@ static struct fclamp {
 #define per_cpu_fc(cpu)		(*per_cpu_ptr(fclamp, cpu))
 
 static struct fclamp_data boost_fcd;
+static struct fclamp_data clamp_fcd;
 static int fclamp_monitor_group[CGROUP_COUNT];
 static int fclamp_boost;
+static int fclamp_limit;
 
 static int fclamp_can_release(int cpu, struct fclamp_data *fcd, unsigned int boost)
 {
@@ -166,7 +168,9 @@ unsigned int fclamp_apply(struct cpufreq_policy *policy, unsigned int orig_freq)
 	unsigned int new_freq, count = 0, boost = fclamp_boost;
 
 	/* Select fclamp data according to boost or origin util */
-	if (boost) {
+	if (fclamp_limit && orig_freq > clamp_fcd.freq) {
+         fcd = &clamp_fcd;
+    } else if (boost) {
 		/*
 		 * If orig freq is same as max freq, it does not need to
 		 * handle fclamp boost
@@ -247,6 +251,11 @@ static int fclamp_sysbusy_notifier_call(struct notifier_block *nb, unsigned long
 
 	fclamp_boost = state;
 
+	if (state >= SYSBUSY_STATE2)
+		WRITE_ONCE(fclamp_limit, 1);
+	else if (state <= SYSBUSY_STATE0)
+		WRITE_ONCE(fclamp_limit, 0);
+
 	return NOTIFY_OK;
 }
 
@@ -289,6 +298,11 @@ static int fclamp_init(void)
 	boost_fcd.target_period = 1;
 	boost_fcd.target_ratio = 80;
 	boost_fcd.type = FCLAMP_MIN;
+
+	clamp_fcd.freq = 2400000; 
+	clamp_fcd.target_period = 1;
+	clamp_fcd.target_ratio = 200;
+	clamp_fcd.type = FCLAMP_MAX;
 
 	emstune_register_notifier(&fclamp_emstune_notifier);
 	sysbusy_register_notifier(&fclamp_sysbusy_notifier);
