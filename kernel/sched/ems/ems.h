@@ -940,6 +940,7 @@ static inline bool __is_busy_cpu(unsigned long util,
 }
 
 extern int get_sched_class(struct task_struct *p);
+extern void ems_init_cgroup_map(struct cgroup_subsys_state *css);
 extern int cpuctl_task_group_idx(struct task_struct *p);
 extern const struct cpumask *cpu_clustergroup_mask(int cpu);
 extern const struct cpumask *cpu_slowest_mask(void);

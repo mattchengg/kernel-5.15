@@ -313,6 +313,11 @@ static void ems_hook_update_misfit_status(void *data, struct task_struct *p,
 	lb_update_misfit_status(p, rq, need_update);
 }
 
+static void ems_rvh_cpu_cgroup_online(void *unused, struct cgroup_subsys_state *css)
+{
+	ems_init_cgroup_map(css);
+}
+
 /******************************************************************************
  * built-in tracepoint                                                        *
  ******************************************************************************/
@@ -664,6 +669,10 @@ int hook_init(void)
 		return ret;
 
 	ret = register_trace_android_rvh_cpu_cgroup_attach(ems_hook_cpu_cgroup_attach, NULL);
+	if (ret)
+		return ret;
+
+	ret = register_trace_android_rvh_cpu_cgroup_online(ems_rvh_cpu_cgroup_online, NULL);
 	if (ret)
 		return ret;
 
